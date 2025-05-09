@@ -1,0 +1,12 @@
+node_modules/
+cache/
+build/
+typechain/
+typechain-types/
+artifacts/
+coverage*
+.env.local
+.env.*.local
+deployments/
+.openzeppelin/unknown*.json
+.env
