@@ -265,7 +265,7 @@ contract FairLaunchFactoryV1 {
             token1: address(_pairToken),
             fee: POOL_FEE,
             tickLower: initialTick,
-            tickUpper: maxUsableTick(TICK_SPACING),
+            tickUpper: TickRange.maxUsableTick(TICK_SPACING),
             amount0Desired: lpSupply,
             amount1Desired: 0,
             amount0Min: 0,
