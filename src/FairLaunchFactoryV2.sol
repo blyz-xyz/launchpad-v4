@@ -10,12 +10,14 @@ import "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import "@uniswap/v4-core/src/libraries/TickMath.sol";
 import "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
+import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "./RollupTokenV1.sol";
 
 contract FairLaunchFactoryV2 {
 
     IPoolManager public immutable poolManager;
-    ERC20 public defaultPairToken;
+    IERC20 public defaultPairToken;
 
     uint24 public constant POOL_FEE = 10_000;
     int24 public constant TICK_SPACING = 200;
@@ -25,6 +27,9 @@ contract FairLaunchFactoryV2 {
     uint256 public token1Amount = 1e18;
 
     address positionManager = "";
+    // Permit2 is deployed to the same address across mainnet, Ethereum, Optimism, Arbitrum, Polygon, and Celo.
+    // Note: Permit2 is also deployed to the same address on testnet Sepolia.
+    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
 
     struct FeeConfig {
         uint16 creatorLPFeeBps;
@@ -43,7 +48,7 @@ contract FairLaunchFactoryV2 {
 
     string public baseTokenURI;
 
-    constructor(IPoolManager _poolManager, ERC20 _defaultPairToken, address _platformReserve) {
+    constructor(IPoolManager _poolManager, IERC20 _defaultPairToken, address _platformReserve) {
         poolManager = _poolManager;
         defaultPairToken = _defaultPairToken;
         platformReserve = _platformReserve;
@@ -66,9 +71,9 @@ contract FairLaunchFactoryV2 {
 
         string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
-        newToken = address(new RollupToken{salt: keccak256(abi.encode(creator, salt))}(name, symbol, tokenURI, merkleroot, airdropAmount, block.chainid));
+        address newToken = address(new RollupToken{salt: keccak256(abi.encode(creator, salt))}(name, symbol, tokenURI, merkleroot, airdropAmount, block.chainid));
 
-        ERC20 rollup = ERC20(newToken);
+        RollupToken rollupToken = RollupToken(newToken);
 
         // Mint allocations
         RollupToken(newToken).mint(creator, creatorAmount);
@@ -141,13 +146,21 @@ contract FairLaunchFactoryV2 {
             IPositionManager(positionManager).modifyLiquidities.selector, abi.encode(actions, mintParams), deadline
         );
 
-        // TODO: approve the tokens
+        // approve the tokens
+
+        // approve the defaultPairToken
+        defaultPairToken.approve(address(PERMIT2), type(uint256).max);
+        // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
+        PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
+        // approve the newToken
+        IERC20(newToken).approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = currency0.isAddressZero() ? amount0Max : 0;
+        uint256 valueToPass = defaultPairToken.isAddressZero() ? amount0Max : 0;
 
         // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: ethToSend}(params);
+        IPositionManager(positionManager).multicall{value: valueToPass}(params);
 
     }
 
