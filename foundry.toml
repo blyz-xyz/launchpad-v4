@@ -1,0 +1,4 @@
+[profile.default]
+ffi = true
+solc_version = "0.8.26"
+evm_version = "cancun"

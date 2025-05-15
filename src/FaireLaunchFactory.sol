@@ -2,9 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "./RollupToken.sol";
-import "@uniswap/v4-core/src/PoolManager.sol";
-import "@uniswap/v4-periphery/src/PositionManager.sol";
-import '@uniswap/v4-core/src/libraries/Hooks.sol';
+import "v4-core/src/PoolManager.sol";
+import "v4-periphery/src/PositionManager.sol";
+import 'v4-core/src/libraries/Hooks.sol';
 
 contract FairLaunchSale {
     using Address for address payable;
