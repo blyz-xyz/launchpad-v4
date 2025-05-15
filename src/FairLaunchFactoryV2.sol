@@ -48,6 +48,14 @@ contract FairLaunchFactoryV2 {
 
     string public baseTokenURI;
 
+
+    /*//////////////////////////////////////////////////////////////
+                                EVENT
+    //////////////////////////////////////////////////////////////*/
+
+    event TokenLaunched(address token, address creator, PoolId poolId);
+
+
     constructor(IPoolManager _poolManager, IERC20 _defaultPairToken, address _platformReserve) {
         poolManager = _poolManager;
         defaultPairToken = _defaultPairToken;
@@ -127,6 +135,7 @@ contract FairLaunchFactoryV2 {
             token1Amount
         );
 
+        bytes memory hookData = ""; // no hook data
         (bytes memory actions, bytes[] memory mintParams) =
             _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
 
@@ -157,11 +166,12 @@ contract FairLaunchFactoryV2 {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = defaultPairToken.isAddressZero() ? amount0Max : 0;
+        uint256 valueToPass = address(defaultPairToken) == address(0) ? amount0Max : 0;
 
         // multicall to atomically create pool & add liquidity
         IPositionManager(positionManager).multicall{value: valueToPass}(params);
 
+        TokenLaunched(newToken, msg.sender, poolId);
     }
 
 
