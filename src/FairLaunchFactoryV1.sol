@@ -2,12 +2,12 @@
 pragma solidity ^0.8.20;
 
 // Core interface for pools
-import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+import 'v3-core/contracts/interfaces/IUniswapV3Pool.sol';
 // For swaps
-import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import 'v3-periphery/contracts/interfaces/ISwapRouter.sol';
 // For liquidity position management
-import '@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
-import '@uniswap/v3-periphery/contracts/interfaces/external/IWETH9.sol';
+import 'v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
+import 'v3-periphery/contracts/interfaces/external/IWETH9.sol';
 
 
 contract FairLaunchFactoryV1 {
