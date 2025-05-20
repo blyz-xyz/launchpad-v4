@@ -22,14 +22,16 @@ contract FairLaunchFactoryV2 {
     int24 public constant TICK_SPACING = 200;
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 1e18;
-    uint256 public token1Amount = 1e18;
+    // uint256 public token0Amount = 1e18;
+    // uint256 public token1Amount = 1e18;
 
     // positionManager on Sepolia
-    IPositionManager constant positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
+    // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
+    IPositionManager public immutable positionManager;
     // Permit2 is deployed to the same address across mainnet, Ethereum, Optimism, Arbitrum, Polygon, and Celo.
     // Note: Permit2 is also deployed to the same address on testnet Sepolia.
-    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
+    // IAllowanceTransfer public immutable PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
+    IAllowanceTransfer public immutable PERMIT2;
 
     /*//////////////////////////////////////////////////////////////
                               FEE CONFIG
@@ -77,11 +79,20 @@ contract FairLaunchFactoryV2 {
     event TokenLaunched(address token, address creator, PoolId poolId);
 
 
-    constructor(IPoolManager _poolManager, IERC20 _defaultPairToken, address _platformReserve) {
-        poolManager = _poolManager;
-        defaultPairToken = _defaultPairToken;
+    constructor(
+        address _poolManager,
+        address _defaultPairToken,
+        address _platformReserve,
+        address _positionManager,
+        address _permit2
+    ) {
+        poolManager = IPoolManager(_poolManager);
+        defaultPairToken = IERC20(_defaultPairToken);
         platformReserve = _platformReserve;
+        PERMIT2 = IAllowanceTransfer(_permit2);
+        positionManager = IPositionManager(_positionManager);
     }
+
 
     /// @notice Launch a new token and register a Uniswap v4 pool
     function launchToken(
@@ -90,26 +101,28 @@ contract FairLaunchFactoryV2 {
         uint256 supply,
         bytes32 merkleroot,
         int24 initialTick,
-        bytes32 salt,
+        // bytes32 salt,
         address creator
-    ) public {
+    ) public 
+        returns (RollupToken newToken)
+    {
         require(supply > 0, "ZeroSupply");
 
         bool hasAirdrop = merkleroot != bytes32(0);
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount) =
-            calculateSupplyAllocation(supply, merkleroot != bytes32(0));
+            calculateSupplyAllocation(supply, hasAirdrop);
 
-        string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
+        // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
-        address newToken = address(new RollupToken(name, symbol));
+        newToken = new RollupToken(name, symbol);
 
-        RollupToken rollupToken = RollupToken(newToken);
+        // RollupToken rollupToken = RollupToken(newToken);
 
         // Mint allocations
-        RollupToken(newToken).mint(creator, creatorAmount);
-        RollupToken(newToken).mint(platformReserve, protocolAmount);
-        RollupToken(newToken).mint(address(this), lpSupply);
+        newToken.mint(creator, creatorAmount);
+        newToken.mint(platformReserve, protocolAmount);
+        newToken.mint(address(this), lpSupply);
 
         // Set FeeConfig
         // Set up fee configuration
@@ -126,7 +139,7 @@ contract FairLaunchFactoryV2 {
 
         // Construct pool key
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(newToken),
+            currency0: Currency.wrap(address(newToken)),
             currency1: Currency.wrap(address(defaultPairToken)),
             fee: POOL_FEE,
             tickSpacing: TICK_SPACING,
@@ -134,7 +147,7 @@ contract FairLaunchFactoryV2 {
         });
 
         PoolId poolId = key.toId();
-        poolToToken[poolId] = newToken;
+        poolToToken[poolId] = address(newToken);
 
         // Option 1: Initialize the pool, called when no need to add initial liquidity
         // poolManager.initialize(key, TickMath.getSqrtPriceAtTick(initialTick));
@@ -190,12 +203,12 @@ contract FairLaunchFactoryV2 {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? 0 : 0;
+        // uint256 valueToPass = address(defaultPairToken) == address(0) ? 0 : 0;
 
         // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: valueToPass}(params);
+        IPositionManager(positionManager).multicall{value: 0}(params);
 
-        emit TokenLaunched(newToken, msg.sender, poolId);
+        emit TokenLaunched(address(newToken), msg.sender, key.toId());
     }
 
 
@@ -241,7 +254,7 @@ contract FairLaunchFactoryV2 {
     */
 
     function calculateSupplyAllocation(uint256 totalSupply, bool hasAirdrop)
-        internal
+        public
         view
         returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount)
     {
@@ -255,15 +268,5 @@ contract FairLaunchFactoryV2 {
             airdropAmount = 0;
         }
         lpAmount = totalSupply - creatorAmount - protocolAmount - airdropAmount;
-    }
-
-    function toHex(bytes32 data) internal pure returns (string memory) {
-        bytes memory hexChars = "0123456789abcdef";
-        bytes memory str = new bytes(64);
-        for (uint i = 0; i < 32; i++) {
-            str[i * 2] = hexChars[uint8(data[i] >> 4)];
-            str[1 + i * 2] = hexChars[uint8(data[i] & 0x0f)];
-        }
-        return string(str);
     }
 }

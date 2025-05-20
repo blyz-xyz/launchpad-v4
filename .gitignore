@@ -10,3 +10,4 @@ coverage*
 deployments/
 .openzeppelin/unknown*.json
 .env
+.out

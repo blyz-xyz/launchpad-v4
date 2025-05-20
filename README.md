@@ -6,9 +6,9 @@ To compile the project, run the command:
 forge build --via-ir
 ```
 
-To deploy these contracts, run the command:
+To run tests, run the command:
 
 ```
-npx hardhat run scripts/deploy.ts --network sepolia
+forge test
 ```
 
