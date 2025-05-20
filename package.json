@@ -1,5 +1,5 @@
 {
-  "name": "@glitchd-labs/rollup-launchpad",
+  "name": "@glitchd-labs/rollup-launchpad-v4",
   "version": "1.0.0",
   "description": "Launch rollup token and send to uniswap for liquidity.",
   "main": "index.js",

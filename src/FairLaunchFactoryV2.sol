@@ -31,13 +31,24 @@ contract FairLaunchFactoryV2 {
     // Note: Permit2 is also deployed to the same address on testnet Sepolia.
     IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
 
+    /*//////////////////////////////////////////////////////////////
+                              FEE CONFIG
+    //////////////////////////////////////////////////////////////*/
+
     struct FeeConfig {
+        // Creator's share of LP fees (in basis points, max 10000)
         uint16 creatorLPFeeBps;
+        // Protocol's base fee from initial supply (in basis points)
         uint16 protocolBaseBps;
+        // Creator's fee from initial supply (in basis points)
         uint16 creatorBaseBps;
+        // Airdrop allocation from initial supply (in basis points)
         uint16 airdropBps;
+        // Whether this token has airdrop enabled
         bool hasAirdrop;
+        // Fee Token
         address feeToken;
+        // Creator address for this token
         address creator;
     }
 
@@ -48,6 +59,16 @@ contract FairLaunchFactoryV2 {
 
     string public baseTokenURI;
 
+    /// @dev Default fee configuration
+    FeeConfig public defaultFeeConfig = FeeConfig({
+        creatorLPFeeBps: 5000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
+        protocolBaseBps: 200, // 2.00% to protocol if no airdrop
+        creatorBaseBps: 50, // 0.50% to creator with airdrop
+        airdropBps: 50, // 0.50% to airdrop
+        hasAirdrop: false,
+        feeToken: address(0),
+        creator: address(0)
+    });
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -74,6 +95,8 @@ contract FairLaunchFactoryV2 {
     ) public {
         require(supply > 0, "ZeroSupply");
 
+        bool hasAirdrop = merkleroot != bytes32(0);
+
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount) =
             calculateSupplyAllocation(supply, merkleroot != bytes32(0));
 
@@ -89,16 +112,17 @@ contract FairLaunchFactoryV2 {
         RollupToken(newToken).mint(address(this), lpSupply);
 
         // Set FeeConfig
+        // Set up fee configuration
         FeeConfig memory config = FeeConfig({
-            creatorLPFeeBps: 5000,
-            protocolBaseBps: 200,
-            creatorBaseBps: 50,
-            airdropBps: 50,
-            hasAirdrop: merkleroot != bytes32(0),
+            creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
+            protocolBaseBps: defaultFeeConfig.protocolBaseBps,
+            creatorBaseBps: defaultFeeConfig.creatorBaseBps,
+            airdropBps: defaultFeeConfig.airdropBps,
+            hasAirdrop: hasAirdrop,
             feeToken: address(defaultPairToken),
-            creator: creator
+            creator: msg.sender
         });
-        tokenFeeConfig[newToken] = config;
+        tokenFeeConfig[address(newToken)] = config;
 
         // Construct pool key
         PoolKey memory key = PoolKey({
@@ -121,8 +145,8 @@ contract FairLaunchFactoryV2 {
         int24 tickLower = initialTick; // must be a multiple of tickSpacing
         int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
         // slippage limits
-        uint256 amount0Max = token0Amount + 1 wei;
-        uint256 amount1Max = token1Amount + 1 wei;
+        // uint256 amount0Max = token0Amount + 1 wei;
+        // uint256 amount1Max = token1Amount + 1 wei;
 
         // starting price of the pool, in sqrtPriceX96
         uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
@@ -131,13 +155,13 @@ contract FairLaunchFactoryV2 {
             startingPrice,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
-            token0Amount,
-            token1Amount
+            lpSupply,
+            0
         );
 
         bytes memory hookData = ""; // no hook data
         (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
+            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, lpSupply, 0, address(this), hookData);
 
         // the parameters provided to multicall()
         bytes[] memory params = new bytes[](2);
@@ -166,7 +190,7 @@ contract FairLaunchFactoryV2 {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? amount0Max : 0;
+        uint256 valueToPass = address(defaultPairToken) == address(0) ? 0 : 0;
 
         // multicall to atomically create pool & add liquidity
         IPositionManager(positionManager).multicall{value: valueToPass}(params);

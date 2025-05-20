@@ -1,4 +1,10 @@
-# Smart contract development scaffold.
+# Rollup Launchpad for Uniswap V4
+
+To compile the project, run the command:
+
+```
+forge build --via-ir
+```
 
 To deploy these contracts, run the command:
 
