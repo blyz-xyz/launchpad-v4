@@ -6,9 +6,9 @@ import "v4-core/src/types/PoolKey.sol";
 import "v4-core/src/libraries/TickMath.sol";
 import "v4-core/src/types/PoolId.sol";
 import "v4-core/test/utils/LiquidityAmounts.sol";
-import "v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
+import {IPoolInitializer_v4} from "v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import "v4-periphery/src/libraries/Actions.sol";
-import "v4-periphery/src/interfaces/IPositionManager.sol";
+import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "./RollupToken.sol";
@@ -79,7 +79,7 @@ contract FairLaunchFactoryV2 {
 
         string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
-        address newToken = address(new RollupToken{salt: keccak256(abi.encode(creator, salt))}(name, symbol, tokenURI, merkleroot, airdropAmount, block.chainid));
+        address newToken = address(new RollupToken(name, symbol));
 
         RollupToken rollupToken = RollupToken(newToken);
 

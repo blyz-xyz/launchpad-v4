@@ -2,3 +2,4 @@
 ffi = true
 solc_version = "0.8.26"
 evm_version = "cancun"
+libs = ["node_modules", "lib"]
