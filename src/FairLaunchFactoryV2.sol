@@ -11,7 +11,7 @@ import "v4-periphery/src/libraries/Actions.sol";
 import "v4-periphery/src/interfaces/IPositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
-import "./RollupTokenV1.sol";
+import "./RollupToken.sol";
 
 contract FairLaunchFactoryV2 {
 
@@ -171,7 +171,7 @@ contract FairLaunchFactoryV2 {
         // multicall to atomically create pool & add liquidity
         IPositionManager(positionManager).multicall{value: valueToPass}(params);
 
-        TokenLaunched(newToken, msg.sender, poolId);
+        emit TokenLaunched(newToken, msg.sender, poolId);
     }
 
 
