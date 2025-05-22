@@ -12,18 +12,26 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "./RollupToken.sol";
+import "./utils/Constants.sol";
 
 contract FairLaunchFactoryV2 {
 
     IPoolManager public immutable poolManager;
     IERC20 public defaultPairToken;
 
+    // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 10_000;
+    // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
     int24 public constant TICK_SPACING = 200;
 
     // --- liquidity position configuration --- //
     // uint256 public token0Amount = 1e18;
     // uint256 public token1Amount = 1e18;
+    address public token0;
+    address public token1;
+    uint256 public amount0;
+    uint256 public amount1;
+    int24 public initialTick;
 
     // positionManager on Sepolia
     // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
@@ -137,10 +145,30 @@ contract FairLaunchFactoryV2 {
         });
         tokenFeeConfig[address(newToken)] = config;
 
+        int24 tickLower = initialTick; // must be a multiple of tickSpacing
+        int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+
         // Construct pool key
+        // PoolKey must have currencies where address(currency0) < address(currency1), otherwise it will revert with CurrenciesOutOfOrderOrEqual error
+        if (address(newToken) < address(defaultPairToken)) {
+            token0 = address(newToken);
+            token1 = address(defaultPairToken);
+            amount0 = lpSupply;
+            amount1 = 0;
+        } else {
+            token0 = address(defaultPairToken);
+            token1 = address(newToken);
+            amount0 = 0;
+            amount1 = lpSupply;
+            tickLower = TickMath.minUsableTick(TICK_SPACING);
+            tickUpper = initialTick;
+            startingPrice = TickMath.getSqrtPriceAtTick(tickLower);
+        }
+
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(address(newToken)),
-            currency1: Currency.wrap(address(defaultPairToken)),
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
             fee: POOL_FEE,
             tickSpacing: TICK_SPACING,
             hooks: IHooks(address(0x0)) // no hooks used
@@ -155,26 +183,26 @@ contract FairLaunchFactoryV2 {
         // Option 2: Add initial liquidity
 
         // range of the position
-        int24 tickLower = initialTick; // must be a multiple of tickSpacing
-        int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+        // int24 tickLower = initialTick; // must be a multiple of tickSpacing
+        // int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
         // slippage limits
         // uint256 amount0Max = token0Amount + 1 wei;
         // uint256 amount1Max = token1Amount + 1 wei;
 
         // starting price of the pool, in sqrtPriceX96
-        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+        // uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
-            lpSupply,
-            0
+            amount0,
+            amount1
         );
 
         bytes memory hookData = ""; // no hook data
         (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, lpSupply, 0, address(this), hookData);
+            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0, amount1, address(this), hookData);
 
         // the parameters provided to multicall()
         bytes[] memory params = new bytes[](2);
@@ -183,7 +211,7 @@ contract FairLaunchFactoryV2 {
         params[0] = abi.encodeWithSelector(
             IPoolInitializer_v4.initializePool.selector,
             key,
-            TickMath.getSqrtPriceAtTick(initialTick)
+            startingPrice // TickMath.getSqrtPriceAtTick(initialTick)
         );
 
         uint256 deadline = block.timestamp + 60;

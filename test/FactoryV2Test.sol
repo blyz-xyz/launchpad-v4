@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./../src/FairLaunchFactoryV2.sol";
+import "./../src/RollupToken.sol";
 import "./TestConfig.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
@@ -31,7 +32,24 @@ contract FactoryV2Test is Test, TestConfig {
         vm.startPrank(creator);
     }
 
-    function testCalculateSupplyAllocation() public {
+    function testLaunchToken() public {
+        vm.startPrank(creator);
+        string memory name = "RollupToken";
+        string memory symbol = "GLT";
+        uint256 supply = 1_000_000_000 ether;
+        address feeToken = address(0);
+
+        (RollupToken token) = factoryV2.launchToken(
+            name,
+            symbol,
+            supply,
+            "",
+            200,
+            address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
+        );
+    }
+
+    function testCalculateSupplyAllocation() public view {
         // vm.startPrank(creator);
         uint256 totalSupply = 1_000_000_000 ether;
         bool hasAirdrop = false;

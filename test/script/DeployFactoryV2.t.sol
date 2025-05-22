@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
+
+import "./../../src/FairLaunchFactoryV2.sol";
+import "./../../src/RollupToken.sol";
+import "forge-std/console2.sol";
+import "forge-std/Script.sol";
+
+contract DeployFactoryV2 is Script {
+    FairLaunchFactoryV2 public factoryV2;
+
+    function setUp() public {
+    }
+
+    function run() public returns (IPoolManager manager) {
+        vm.startBroadcast();
+
+        // deploy an ERC20 token
+        RollupToken defaultPairToken = new RollupToken("Angel", "AGL");
+        console2.log("defaultPairToken", address(defaultPairToken));
+        
+        // it seems that the address is fixed in the failed attempt RollupToken@0x0B5E0f66b806d8596cA6E141d5B0CaE3F7A0bE32
+
+        // use a predeployed ERC20 token
+        // address defaultPairToken = 0x938715A1ad55BD6948763A60a77027c9DBD6A5cc;
+        vm.stopBroadcast();
+
+        vm.startBroadcast();
+        // Uniswap deployment on Sepolia
+        // refs: https://docs.uniswap.org/contracts/v4/deployments#sepolia-11155111
+        address poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
+        address positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
+        address platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        address permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
+        factoryV2 = new FairLaunchFactoryV2(
+            poolManagerAddress,
+            address(defaultPairToken),
+            platformReserveAddress,
+            positionManagerAddress,
+            permit2Address
+        );
+
+        console2.log("FairLaunchFactoryV2", address(factoryV2));
+
+        // get the initial tick from SQRT_PRICE_1_1
+
+
+        string memory name = "RollupToken";
+        string memory symbol = "GLT";
+        uint256 supply = 1_000_000_000 ether;
+        address feeToken = address(0);
+
+        // @Notice: CurrenciesOutOfOrderOrEqual
+        (RollupToken token) = factoryV2.launchToken(
+            name,
+            symbol,
+            supply,
+            "",
+            200,
+            address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
+        );                
+
+        vm.stopBroadcast();
+    }
+}
