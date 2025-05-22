@@ -6,38 +6,59 @@ import "v4-core/src/types/PoolKey.sol";
 import "v4-core/src/libraries/TickMath.sol";
 import "v4-core/src/types/PoolId.sol";
 import "v4-core/test/utils/LiquidityAmounts.sol";
-import "v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
+import {IPoolInitializer_v4} from "v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import "v4-periphery/src/libraries/Actions.sol";
-import "v4-periphery/src/interfaces/IPositionManager.sol";
+import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
-import "./RollupTokenV1.sol";
+import "./RollupToken.sol";
+import "./utils/Constants.sol";
 
 contract FairLaunchFactoryV2 {
 
     IPoolManager public immutable poolManager;
     IERC20 public defaultPairToken;
 
+    // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 10_000;
+    // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
     int24 public constant TICK_SPACING = 200;
 
     // --- liquidity position configuration --- //
-    uint256 public token0Amount = 1e18;
-    uint256 public token1Amount = 1e18;
+    // uint256 public token0Amount = 1e18;
+    // uint256 public token1Amount = 1e18;
+    address public token0;
+    address public token1;
+    uint256 public amount0;
+    uint256 public amount1;
+    int24 public initialTick;
 
     // positionManager on Sepolia
-    IPositionManager constant positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
+    // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
+    IPositionManager public immutable positionManager;
     // Permit2 is deployed to the same address across mainnet, Ethereum, Optimism, Arbitrum, Polygon, and Celo.
     // Note: Permit2 is also deployed to the same address on testnet Sepolia.
-    IAllowanceTransfer constant PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
+    // IAllowanceTransfer public immutable PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
+    IAllowanceTransfer public immutable PERMIT2;
+
+    /*//////////////////////////////////////////////////////////////
+                              FEE CONFIG
+    //////////////////////////////////////////////////////////////*/
 
     struct FeeConfig {
+        // Creator's share of LP fees (in basis points, max 10000)
         uint16 creatorLPFeeBps;
+        // Protocol's base fee from initial supply (in basis points)
         uint16 protocolBaseBps;
+        // Creator's fee from initial supply (in basis points)
         uint16 creatorBaseBps;
+        // Airdrop allocation from initial supply (in basis points)
         uint16 airdropBps;
+        // Whether this token has airdrop enabled
         bool hasAirdrop;
+        // Fee Token
         address feeToken;
+        // Creator address for this token
         address creator;
     }
 
@@ -48,6 +69,16 @@ contract FairLaunchFactoryV2 {
 
     string public baseTokenURI;
 
+    /// @dev Default fee configuration
+    FeeConfig public defaultFeeConfig = FeeConfig({
+        creatorLPFeeBps: 5000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
+        protocolBaseBps: 200, // 2.00% to protocol if no airdrop
+        creatorBaseBps: 50, // 0.50% to creator with airdrop
+        airdropBps: 50, // 0.50% to airdrop
+        hasAirdrop: false,
+        feeToken: address(0),
+        creator: address(0)
+    });
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -56,11 +87,20 @@ contract FairLaunchFactoryV2 {
     event TokenLaunched(address token, address creator, PoolId poolId);
 
 
-    constructor(IPoolManager _poolManager, IERC20 _defaultPairToken, address _platformReserve) {
-        poolManager = _poolManager;
-        defaultPairToken = _defaultPairToken;
+    constructor(
+        address _poolManager,
+        address _defaultPairToken,
+        address _platformReserve,
+        address _positionManager,
+        address _permit2
+    ) {
+        poolManager = IPoolManager(_poolManager);
+        defaultPairToken = IERC20(_defaultPairToken);
         platformReserve = _platformReserve;
+        PERMIT2 = IAllowanceTransfer(_permit2);
+        positionManager = IPositionManager(_positionManager);
     }
+
 
     /// @notice Launch a new token and register a Uniswap v4 pool
     function launchToken(
@@ -69,48 +109,73 @@ contract FairLaunchFactoryV2 {
         uint256 supply,
         bytes32 merkleroot,
         int24 initialTick,
-        bytes32 salt,
+        // bytes32 salt,
         address creator
-    ) public {
+    ) public 
+        returns (RollupToken newToken)
+    {
         require(supply > 0, "ZeroSupply");
 
+        bool hasAirdrop = merkleroot != bytes32(0);
+
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount) =
-            calculateSupplyAllocation(supply, merkleroot != bytes32(0));
+            calculateSupplyAllocation(supply, hasAirdrop);
 
-        string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
+        // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
-        address newToken = address(new RollupToken{salt: keccak256(abi.encode(creator, salt))}(name, symbol, tokenURI, merkleroot, airdropAmount, block.chainid));
+        newToken = new RollupToken(name, symbol);
 
-        RollupToken rollupToken = RollupToken(newToken);
+        // RollupToken rollupToken = RollupToken(newToken);
 
         // Mint allocations
-        RollupToken(newToken).mint(creator, creatorAmount);
-        RollupToken(newToken).mint(platformReserve, protocolAmount);
-        RollupToken(newToken).mint(address(this), lpSupply);
+        newToken.mint(creator, creatorAmount);
+        newToken.mint(platformReserve, protocolAmount);
+        newToken.mint(address(this), lpSupply);
 
         // Set FeeConfig
+        // Set up fee configuration
         FeeConfig memory config = FeeConfig({
-            creatorLPFeeBps: 5000,
-            protocolBaseBps: 200,
-            creatorBaseBps: 50,
-            airdropBps: 50,
-            hasAirdrop: merkleroot != bytes32(0),
+            creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
+            protocolBaseBps: defaultFeeConfig.protocolBaseBps,
+            creatorBaseBps: defaultFeeConfig.creatorBaseBps,
+            airdropBps: defaultFeeConfig.airdropBps,
+            hasAirdrop: hasAirdrop,
             feeToken: address(defaultPairToken),
-            creator: creator
+            creator: msg.sender
         });
-        tokenFeeConfig[newToken] = config;
+        tokenFeeConfig[address(newToken)] = config;
+
+        int24 tickLower = initialTick; // must be a multiple of tickSpacing
+        int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
 
         // Construct pool key
+        // PoolKey must have currencies where address(currency0) < address(currency1), otherwise it will revert with CurrenciesOutOfOrderOrEqual error
+        if (address(newToken) < address(defaultPairToken)) {
+            token0 = address(newToken);
+            token1 = address(defaultPairToken);
+            amount0 = lpSupply;
+            amount1 = 0;
+        } else {
+            token0 = address(defaultPairToken);
+            token1 = address(newToken);
+            amount0 = 0;
+            amount1 = lpSupply;
+            tickLower = TickMath.minUsableTick(TICK_SPACING);
+            tickUpper = initialTick;
+            startingPrice = TickMath.getSqrtPriceAtTick(tickLower);
+        }
+
         PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(newToken),
-            currency1: Currency.wrap(address(defaultPairToken)),
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
             fee: POOL_FEE,
             tickSpacing: TICK_SPACING,
             hooks: IHooks(address(0x0)) // no hooks used
         });
 
         PoolId poolId = key.toId();
-        poolToToken[poolId] = newToken;
+        poolToToken[poolId] = address(newToken);
 
         // Option 1: Initialize the pool, called when no need to add initial liquidity
         // poolManager.initialize(key, TickMath.getSqrtPriceAtTick(initialTick));
@@ -118,26 +183,26 @@ contract FairLaunchFactoryV2 {
         // Option 2: Add initial liquidity
 
         // range of the position
-        int24 tickLower = initialTick; // must be a multiple of tickSpacing
-        int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+        // int24 tickLower = initialTick; // must be a multiple of tickSpacing
+        // int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
         // slippage limits
-        uint256 amount0Max = token0Amount + 1 wei;
-        uint256 amount1Max = token1Amount + 1 wei;
+        // uint256 amount0Max = token0Amount + 1 wei;
+        // uint256 amount1Max = token1Amount + 1 wei;
 
         // starting price of the pool, in sqrtPriceX96
-        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+        // uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
         // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
             TickMath.getSqrtPriceAtTick(tickLower),
             TickMath.getSqrtPriceAtTick(tickUpper),
-            token0Amount,
-            token1Amount
+            amount0,
+            amount1
         );
 
         bytes memory hookData = ""; // no hook data
         (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0Max, amount1Max, address(this), hookData);
+            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0, amount1, address(this), hookData);
 
         // the parameters provided to multicall()
         bytes[] memory params = new bytes[](2);
@@ -146,7 +211,7 @@ contract FairLaunchFactoryV2 {
         params[0] = abi.encodeWithSelector(
             IPoolInitializer_v4.initializePool.selector,
             key,
-            TickMath.getSqrtPriceAtTick(initialTick)
+            startingPrice // TickMath.getSqrtPriceAtTick(initialTick)
         );
 
         uint256 deadline = block.timestamp + 60;
@@ -166,12 +231,12 @@ contract FairLaunchFactoryV2 {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? amount0Max : 0;
+        // uint256 valueToPass = address(defaultPairToken) == address(0) ? 0 : 0;
 
         // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: valueToPass}(params);
+        IPositionManager(positionManager).multicall{value: 0}(params);
 
-        TokenLaunched(newToken, msg.sender, poolId);
+        emit TokenLaunched(address(newToken), msg.sender, key.toId());
     }
 
 
@@ -217,7 +282,7 @@ contract FairLaunchFactoryV2 {
     */
 
     function calculateSupplyAllocation(uint256 totalSupply, bool hasAirdrop)
-        internal
+        public
         view
         returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount)
     {
@@ -231,15 +296,5 @@ contract FairLaunchFactoryV2 {
             airdropAmount = 0;
         }
         lpAmount = totalSupply - creatorAmount - protocolAmount - airdropAmount;
-    }
-
-    function toHex(bytes32 data) internal pure returns (string memory) {
-        bytes memory hexChars = "0123456789abcdef";
-        bytes memory str = new bytes(64);
-        for (uint i = 0; i < 32; i++) {
-            str[i * 2] = hexChars[uint8(data[i] >> 4)];
-            str[1 + i * 2] = hexChars[uint8(data[i] & 0x0f)];
-        }
-        return string(str);
     }
 }

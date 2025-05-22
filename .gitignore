@@ -10,3 +10,10 @@ coverage*
 deployments/
 .openzeppelin/unknown*.json
 .env
+.out
+
+# Ignores development (and sepolia) broadcast logs
+!/broadcast
+/broadcast/*/11155111/
+/broadcast/**/dry-run/
+out/

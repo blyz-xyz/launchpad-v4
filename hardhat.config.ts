@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from 'hardhat/types';
 
 import "@nomicfoundation/hardhat-ethers";
+// import "@nomicfoundation/hardhat-foundry";
 import '@typechain/hardhat';
 import 'hardhat-deploy';
 import "@openzeppelin/hardhat-upgrades";
@@ -12,12 +13,14 @@ import {
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [{ 
-      version: '0.8.29',
+      version: '0.8.26',
       settings: {
         optimizer: {
           enabled: true,
           runs: 1000,
-        }
+        },
+        viaIR: true,
+        evmVersion: `cancun`,
       } }],
   },
   networks: {

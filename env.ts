@@ -21,8 +21,11 @@ dotenvFiles.forEach((dotenvFile) => {
 
 const {
   PRIVATE_KEY = '',
+  SEPOLIA_RPC_URL = '',
 } = process.env;
 
 // api keys
-export { PRIVATE_KEY,
+export {
+  PRIVATE_KEY, 
+  SEPOLIA_RPC_URL
 };
