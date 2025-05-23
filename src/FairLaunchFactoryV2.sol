@@ -16,6 +16,12 @@ import "./utils/Constants.sol";
 
 contract FairLaunchFactoryV2 {
 
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+
+    error InvalidToken();
+
     IPoolManager public immutable poolManager;
     IERC20 public defaultPairToken;
 
@@ -62,6 +68,11 @@ contract FairLaunchFactoryV2 {
         address creator;
     }
 
+    struct UnclaimedFees {
+        uint128 unclaimed0;
+        uint128 unclaimed1;
+    }
+
     mapping(address => FeeConfig) public tokenFeeConfig;
     mapping(PoolId => address) public poolToToken;
 
@@ -79,6 +90,15 @@ contract FairLaunchFactoryV2 {
         feeToken: address(0),
         creator: address(0)
     });
+
+    /// @dev The mapping from token address to its liquidity position ID
+    mapping(address => uint256) public tokenPositionIds;
+
+    /// @dev The mapping from tokenId to creator's unclaimed fees
+    mapping(uint256 => UnclaimedFees) public creatorUnclaimedFees;
+
+    /// @dev The mapping from tokenId to protocol's unclaimed fees
+    mapping(uint256 => UnclaimedFees) public protocolUnclaimedFees;
 
     /*//////////////////////////////////////////////////////////////
                                 EVENT
@@ -237,6 +257,35 @@ contract FairLaunchFactoryV2 {
         IPositionManager(positionManager).multicall{value: 0}(params);
 
         emit TokenLaunched(address(newToken), msg.sender, key.toId());
+    }
+
+    /// @param token The token address to collect fees for
+    function collectFees(
+        address token
+    ) public {
+        uint256 tokenId = tokenPositionIds[token];
+        if (tokenId == 0)
+            revert InvalidToken();
+
+        bytes memory actions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
+        bytes[] memory params = new bytes[](2);
+
+        bytes memory hookData = ""; // no hook data
+        /// @dev collecting fees is achieved with liquidity=0, the second parameter
+        params[0] = abi.encode(tokenId, 0, 0, 0, hookData);
+
+        // we may not need to compare the order of the token and the defaultPairToken
+        params[1] = abi.encode(
+            Currency.wrap(address(token)),
+            Currency.wrap(address(defaultPairToken)),
+            address(this) // recipient is set to be this contract
+        );
+
+        uint256 deadline = block.timestamp + 60;
+        positionManager.modifyLiquidities{value: 0}(
+            abi.encode(actions, params),
+            deadline
+        );
     }
 
 
