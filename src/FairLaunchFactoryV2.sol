@@ -200,7 +200,7 @@ contract FairLaunchFactoryV2 {
             amount1 = lpSupply;
             tickLower = TickMath.minUsableTick(TICK_SPACING);
             tickUpper = initialTick;
-            startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+            startingPrice = TickMath.getSqrtPriceAtTick(initialTick); // using tickLower seems to fail the tx
         }
 
         PoolKey memory key = PoolKey({
