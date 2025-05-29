@@ -21,9 +21,12 @@ contract FairLaunchFactoryV2 {
     //////////////////////////////////////////////////////////////*/
 
     error InvalidToken();
+    error NoFeesToClaim();
+    error Unauthorized();
 
     IPoolManager public immutable poolManager;
     IERC20 public defaultPairToken;
+    address public protocolOwner;
 
     // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 10_000;
@@ -106,19 +109,33 @@ contract FairLaunchFactoryV2 {
 
     event TokenLaunched(address token, address creator, PoolId poolId);
 
+    /// @param tokenId The ID of the NFT Position
+    /// @param creatorFee0 The amount of token0 fees for the creator
+    /// @param creatorFee1 The amount of token1 fees for the creator
+    /// @param protocolFee0 The amount of token0 fees for the protocol
+    /// @param protocolFee1 The amount of token1 fees for the protocol
+    event FeesCollected(uint256 indexed tokenId, uint256 creatorFee0, uint256 creatorFee1, uint256 protocolFee0, uint256 protocolFee1);
+
+    /// @param recipient The address of the recipient
+    /// @param tokenId The ID of the NFT Position
+    /// @param amount0 The amount of token0 fees claimed
+    /// @param amount1 The amount of token1 fees claimed
+    event FeesClaimed(address indexed recipient, uint256 indexed tokenId, uint256 amount0, uint256 amount1);
 
     constructor(
         address _poolManager,
         address _defaultPairToken,
         address _platformReserve,
         address _positionManager,
-        address _permit2
+        address _permit2,
+        address _protocolOwner
     ) {
         poolManager = IPoolManager(_poolManager);
         defaultPairToken = IERC20(_defaultPairToken);
         platformReserve = _platformReserve;
         PERMIT2 = IAllowanceTransfer(_permit2);
         positionManager = IPositionManager(_positionManager);
+        protocolOwner = _protocolOwner;
     }
 
 
@@ -183,7 +200,7 @@ contract FairLaunchFactoryV2 {
             amount1 = lpSupply;
             tickLower = TickMath.minUsableTick(TICK_SPACING);
             tickUpper = initialTick;
-            startingPrice = TickMath.getSqrtPriceAtTick(tickLower);
+            startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
         }
 
         PoolKey memory key = PoolKey({
@@ -259,6 +276,7 @@ contract FairLaunchFactoryV2 {
         emit TokenLaunched(address(newToken), msg.sender, key.toId());
     }
 
+
     /// @param token The token address to collect fees for
     function collectFees(
         address token
@@ -266,6 +284,10 @@ contract FairLaunchFactoryV2 {
         uint256 tokenId = tokenPositionIds[token];
         if (tokenId == 0)
             revert InvalidToken();
+
+        // check the balances of the token and the defaultPairToken before collecting fees
+        uint256 tokenBalanceBefore = IERC20(token).balanceOf(address(this));
+        uint256 pairTokenBalanceBefore = defaultPairToken.balanceOf(address(this));
 
         bytes memory actions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
         bytes[] memory params = new bytes[](2);
@@ -286,6 +308,94 @@ contract FairLaunchFactoryV2 {
             abi.encode(actions, params),
             deadline
         );
+
+        uint256 tokenBalanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 pairTokenBalanceAfter = defaultPairToken.balanceOf(address(this));
+
+        // calculate the unclaimed fees
+        uint256 totalFee0 = tokenBalanceAfter - tokenBalanceBefore;
+        uint256 totalFee1 = pairTokenBalanceAfter - pairTokenBalanceBefore;
+
+        // Split fees according to configuration
+        FeeConfig memory config = tokenFeeConfig[token];
+        uint256 creatorFee0 = (totalFee0 * config.creatorLPFeeBps) / 10_000;
+        uint256 creatorFee1 = (totalFee1 * config.creatorLPFeeBps) / 10_000;
+        uint256 protocolFee0 = totalFee0 - creatorFee0;
+        uint256 protocolFee1 = totalFee1 - creatorFee1;
+
+        // Store unclaimed fees
+        creatorUnclaimedFees[tokenId].unclaimed0 += uint128(creatorFee0);
+        creatorUnclaimedFees[tokenId].unclaimed1 += uint128(creatorFee1);
+        protocolUnclaimedFees[tokenId].unclaimed0 += uint128(protocolFee0);
+        protocolUnclaimedFees[tokenId].unclaimed1 += uint128(protocolFee1);
+
+        emit FeesCollected(tokenId, creatorFee0, creatorFee1, protocolFee0, protocolFee1);
+    }
+
+
+    /// @notice Only the creator of this token can claim the fees
+    /// @param token The token address to claim fees for
+    /// @param recipient The recipient of the fees
+    function claimCreatorFees(address token, address recipient) external {
+        if (msg.sender != tokenFeeConfig[token].creator) 
+            revert Unauthorized();
+
+        uint256 tokenId = tokenPositionIds[token];
+
+        UnclaimedFees memory fees = creatorUnclaimedFees[tokenId];
+        if (fees.unclaimed0 == 0 && fees.unclaimed1 == 0) 
+            revert NoFeesToClaim();
+
+        // Reset unclaimed fees before transfer
+        delete creatorUnclaimedFees[tokenId];
+
+        address feeToken = tokenFeeConfig[token].feeToken;
+
+        // Get token addresses in correct order
+        (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
+
+        // Transfer fees
+        if (fees.unclaimed0 > 0) {
+            ERC20(token0).transfer(recipient, fees.unclaimed0);
+        }
+        if (fees.unclaimed1 > 0) {
+            ERC20(token1).transfer(recipient, fees.unclaimed1);
+        }
+
+        emit FeesClaimed(recipient, tokenId, fees.unclaimed0, fees.unclaimed1);
+    }
+
+    /// @notice Claims Protocol Fees. Only the protocol owner can call this function.
+    /// @param token The token address to claim fees for
+    /// @param recipient The recipient of the fees
+    function claimProtocolFees(address token, address recipient) external {
+        if (msg.sender != protocolOwner) 
+           revert Unauthorized();
+
+        uint256 tokenId = tokenPositionIds[token];
+
+        UnclaimedFees memory fees = protocolUnclaimedFees[tokenId];
+        if (fees.unclaimed0 == 0 && fees.unclaimed1 == 0) 
+            revert NoFeesToClaim();
+
+        // Reset unclaimed fees before transfer
+        delete protocolUnclaimedFees[tokenId];
+
+        // Get token addresses in correct order
+        address feeToken = tokenFeeConfig[token].feeToken;
+
+        // Get token addresses in correct order
+        (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
+
+        // Transfer fees
+        if (fees.unclaimed0 > 0) {
+            ERC20(token0).transfer(recipient, fees.unclaimed0);
+        }
+        if (fees.unclaimed1 > 0) {
+            ERC20(token1).transfer(recipient, fees.unclaimed1);
+        }
+
+        emit FeesClaimed(recipient, tokenId, fees.unclaimed0, fees.unclaimed1);
     }
 
 
@@ -309,27 +419,6 @@ contract FairLaunchFactoryV2 {
         return (actions, params);
     }    
     
-    /*
-    /// @notice Fee distribution logic to be called during hooks
-    function afterSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, BalanceDelta delta, bytes calldata)
-        external
-        override
-        returns (bytes4)
-    {
-        address token = poolToToken[key.toId()];
-        FeeConfig memory config = tokenFeeConfig[token];
-
-        uint256 totalFee0 = uint256(int256(-delta.amount0()));
-        uint256 creatorCut = (totalFee0 * config.creatorLPFeeBps) / 10_000;
-        uint256 platformCut = totalFee0 - creatorCut;
-
-        ERC20(Currency.unwrap(key.currency0)).transfer(config.creator, creatorCut);
-        ERC20(Currency.unwrap(key.currency0)).transfer(platformReserve, platformCut);
-
-        return IHooks.afterSwap.selector;
-    }
-    */
-
     function calculateSupplyAllocation(uint256 totalSupply, bool hasAirdrop)
         public
         view
