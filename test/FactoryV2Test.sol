@@ -45,7 +45,6 @@ contract FactoryV2Test is Test, TestConfig {
             name,
             symbol,
             supply,
-            "",
             200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );
@@ -54,10 +53,10 @@ contract FactoryV2Test is Test, TestConfig {
     function testCalculateSupplyAllocation() public view {
         // vm.startPrank(creator);
         uint256 totalSupply = 1_000_000_000 ether;
-        bool hasAirdrop = false;
-        (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount) = 
-            factoryV2.calculateSupplyAllocation(totalSupply, hasAirdrop);
-        assertEq(airdropAmount, 0);
+        (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount) = 
+            factoryV2.calculateSupplyAllocation(totalSupply);
+        assertEq(creatorAmount, 100_000_000*10e18);
+        assertEq(protocolAmount, 200_000_000*10e18);
         assertEq(lpAmount, 97_000_000*10e18);
     }
 }

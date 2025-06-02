@@ -40,7 +40,6 @@ contract FairLaunchFactoryV2 {
     address public token1;
     uint256 public amount0;
     uint256 public amount1;
-    int24 public initialTick;
 
     // positionManager on Sepolia
     // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
@@ -61,10 +60,6 @@ contract FairLaunchFactoryV2 {
         uint16 protocolBaseBps;
         // Creator's fee from initial supply (in basis points)
         uint16 creatorBaseBps;
-        // Airdrop allocation from initial supply (in basis points)
-        uint16 airdropBps;
-        // Whether this token has airdrop enabled
-        bool hasAirdrop;
         // Fee Token
         address feeToken;
         // Creator address for this token
@@ -86,10 +81,8 @@ contract FairLaunchFactoryV2 {
     /// @dev Default fee configuration
     FeeConfig public defaultFeeConfig = FeeConfig({
         creatorLPFeeBps: 5000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
-        protocolBaseBps: 200, // 2.00% to protocol if no airdrop
-        creatorBaseBps: 50, // 0.50% to creator with airdrop
-        airdropBps: 50, // 0.50% to airdrop
-        hasAirdrop: false,
+        protocolBaseBps: 200, // 2.00% to protocol
+        creatorBaseBps: 100, // 1.00% to creator
         feeToken: address(0),
         creator: address(0)
     });
@@ -144,7 +137,6 @@ contract FairLaunchFactoryV2 {
         string memory name,
         string memory symbol,
         uint256 supply,
-        bytes32 merkleroot,
         int24 initialTick,
         // bytes32 salt,
         address creator
@@ -153,10 +145,8 @@ contract FairLaunchFactoryV2 {
     {
         require(supply > 0, "ZeroSupply");
 
-        bool hasAirdrop = merkleroot != bytes32(0);
-
-        (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount) =
-            calculateSupplyAllocation(supply, hasAirdrop);
+        (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
+            calculateSupplyAllocation(supply);
 
         // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
@@ -175,8 +165,6 @@ contract FairLaunchFactoryV2 {
             creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
             protocolBaseBps: defaultFeeConfig.protocolBaseBps,
             creatorBaseBps: defaultFeeConfig.creatorBaseBps,
-            airdropBps: defaultFeeConfig.airdropBps,
-            hasAirdrop: hasAirdrop,
             feeToken: address(defaultPairToken),
             creator: msg.sender
         });
@@ -419,20 +407,13 @@ contract FairLaunchFactoryV2 {
         return (actions, params);
     }    
     
-    function calculateSupplyAllocation(uint256 totalSupply, bool hasAirdrop)
+    function calculateSupplyAllocation(uint256 totalSupply)
         public
         view
-        returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount, uint256 airdropAmount)
+        returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount)
     {
-        if (hasAirdrop) {
-            creatorAmount = (totalSupply * 50) / 10_000;
-            protocolAmount = (totalSupply * 200) / 10_000;
-            airdropAmount = (totalSupply * 50) / 10_000;
-        } else {
-            creatorAmount = (totalSupply * 100) / 10_000;
-            protocolAmount = (totalSupply * 200) / 10_000;
-            airdropAmount = 0;
-        }
-        lpAmount = totalSupply - creatorAmount - protocolAmount - airdropAmount;
+        creatorAmount = (totalSupply * 100) / 10_000;
+        protocolAmount = (totalSupply * 200) / 10_000;
+        lpAmount = totalSupply - creatorAmount - protocolAmount;
     }
 }
