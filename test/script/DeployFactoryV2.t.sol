@@ -58,7 +58,6 @@ contract DeployFactoryV2 is Script {
             name,
             symbol,
             supply,
-            "",
             200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );                
