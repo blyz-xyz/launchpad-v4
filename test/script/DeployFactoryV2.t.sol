@@ -29,14 +29,13 @@ contract DeployFactoryV2 is Script {
         // Uniswap deployment on Sepolia
         // refs: https://docs.uniswap.org/contracts/v4/deployments#sepolia-11155111
         address poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-        address positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
         address platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        address positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
         address permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         address protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
 
         factoryV2 = new FairLaunchFactoryV2(
             poolManagerAddress,
-            // address(defaultPairToken),
             platformReserveAddress,
             positionManagerAddress,
             permit2Address,
@@ -56,7 +55,7 @@ contract DeployFactoryV2 is Script {
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
-            200,
+            207243,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );                
 
