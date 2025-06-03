@@ -25,13 +25,14 @@ contract FairLaunchFactoryV2 {
     error Unauthorized();
 
     IPoolManager public immutable poolManager;
-    IERC20 public defaultPairToken;
+    address public defaultPairToken = address(0); // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
     address public protocolOwner;
 
     // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 10_000;
     // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
     int24 public constant TICK_SPACING = 200;
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
     // --- liquidity position configuration --- //
     // uint256 public token0Amount = 1e18;
@@ -115,16 +116,19 @@ contract FairLaunchFactoryV2 {
     /// @param amount1 The amount of token1 fees claimed
     event FeesClaimed(address indexed recipient, uint256 indexed tokenId, uint256 amount0, uint256 amount1);
 
+    /// @notice Emitted when the default pair token is set
+    /// @param newPairToken The address of the new default pair token
+    /// @param oldPairToken The address of the old default pair token
+    event SetDefaultPairToken(address indexed newPairToken, address indexed oldPairToken);
+
     constructor(
         address _poolManager,
-        address _defaultPairToken,
         address _platformReserve,
         address _positionManager,
         address _permit2,
         address _protocolOwner
     ) {
         poolManager = IPoolManager(_poolManager);
-        defaultPairToken = IERC20(_defaultPairToken);
         platformReserve = _platformReserve;
         PERMIT2 = IAllowanceTransfer(_permit2);
         positionManager = IPositionManager(_positionManager);
@@ -136,17 +140,15 @@ contract FairLaunchFactoryV2 {
     function launchToken(
         string memory name,
         string memory symbol,
-        uint256 supply,
         int24 initialTick,
         // bytes32 salt,
         address creator
-    ) public 
+    ) public payable
         returns (RollupToken newToken)
     {
-        require(supply > 0, "ZeroSupply");
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
-            calculateSupplyAllocation(supply);
+            calculateSupplyAllocation(TOTAL_SUPPLY);
 
         // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
@@ -165,7 +167,7 @@ contract FairLaunchFactoryV2 {
             creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
             protocolBaseBps: defaultFeeConfig.protocolBaseBps,
             creatorBaseBps: defaultFeeConfig.creatorBaseBps,
-            feeToken: address(defaultPairToken),
+            feeToken: address(defaultPairToken), // default fee token is ETH
             creator: msg.sender
         });
         tokenFeeConfig[address(newToken)] = config;
@@ -248,20 +250,35 @@ contract FairLaunchFactoryV2 {
         // approve the tokens
 
         // approve the defaultPairToken
-        defaultPairToken.approve(address(PERMIT2), type(uint256).max);
-        // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
-        PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
+        // Note: if the defaultPairToken is ETH, we don't need to approve it
+        if (address(defaultPairToken) != address(0)) {
+            // if the defaultPairToken is an ERC20 token, we need to approve it
+            IERC20(defaultPairToken).approve(address(PERMIT2), type(uint256).max);
+            // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
+            PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
+        }
+
         // approve the newToken
         IERC20(newToken).approve(address(PERMIT2), type(uint256).max);
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        // uint256 valueToPass = address(defaultPairToken) == address(0) ? 0 : 0;
+        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value : 0;
 
         // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: 0}(params);
+        IPositionManager(positionManager).multicall{value: valueToPass}(params);
 
         emit TokenLaunched(address(newToken), msg.sender, key.toId());
+    }
+
+    /// @notice Set the default pair token for the factory
+    /// @param _defaultPairToken The address of the default pair token
+    function setDefaultPairToken(address _defaultPairToken) external {
+        if (msg.sender != protocolOwner) 
+            revert Unauthorized();
+
+        emit SetDefaultPairToken(_defaultPairToken, defaultPairToken);
+        defaultPairToken = _defaultPairToken;
     }
 
 
@@ -275,7 +292,13 @@ contract FairLaunchFactoryV2 {
 
         // check the balances of the token and the defaultPairToken before collecting fees
         uint256 tokenBalanceBefore = IERC20(token).balanceOf(address(this));
-        uint256 pairTokenBalanceBefore = defaultPairToken.balanceOf(address(this));
+        // check the eth balance of this contract
+        uint256 pairTokenBalanceBefore = 0;
+        if (address(defaultPairToken) == address(0)) {
+            pairTokenBalanceBefore = address(this).balance;
+        } else {
+            pairTokenBalanceBefore = IERC20(defaultPairToken).balanceOf(address(this));
+        }
 
         bytes memory actions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
         bytes[] memory params = new bytes[](2);
@@ -298,7 +321,12 @@ contract FairLaunchFactoryV2 {
         );
 
         uint256 tokenBalanceAfter = IERC20(token).balanceOf(address(this));
-        uint256 pairTokenBalanceAfter = defaultPairToken.balanceOf(address(this));
+        uint256 pairTokenBalanceAfter = 0;
+        if (address(defaultPairToken) == address(0)) {
+            pairTokenBalanceAfter = address(this).balance;
+        } else {
+            pairTokenBalanceAfter = IERC20(defaultPairToken).balanceOf(address(this));
+        }
 
         // calculate the unclaimed fees
         uint256 totalFee0 = tokenBalanceAfter - tokenBalanceBefore;
@@ -342,12 +370,22 @@ contract FairLaunchFactoryV2 {
         // Get token addresses in correct order
         (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
 
-        // Transfer fees
-        if (fees.unclaimed0 > 0) {
-            ERC20(token0).transfer(recipient, fees.unclaimed0);
-        }
-        if (fees.unclaimed1 > 0) {
-            ERC20(token1).transfer(recipient, fees.unclaimed1);
+        if (address(defaultPairToken) == address(0)) {
+            // If the default pair token is ETH, we need to transfer ETH
+            if (fees.unclaimed0 > 0) {
+                payable(recipient).transfer(fees.unclaimed0);
+            }
+            if (fees.unclaimed1 > 0) {
+                ERC20(token1).transfer(recipient, fees.unclaimed1);
+            }
+        } else {
+            // Transfer fees
+            if (fees.unclaimed0 > 0) {
+                ERC20(token0).transfer(recipient, fees.unclaimed0);
+            }
+            if (fees.unclaimed1 > 0) {
+                ERC20(token1).transfer(recipient, fees.unclaimed1);
+            }
         }
 
         emit FeesClaimed(recipient, tokenId, fees.unclaimed0, fees.unclaimed1);
@@ -358,7 +396,7 @@ contract FairLaunchFactoryV2 {
     /// @param recipient The recipient of the fees
     function claimProtocolFees(address token, address recipient) external {
         if (msg.sender != protocolOwner) 
-           revert Unauthorized();
+            revert Unauthorized();
 
         uint256 tokenId = tokenPositionIds[token];
 
@@ -375,12 +413,22 @@ contract FairLaunchFactoryV2 {
         // Get token addresses in correct order
         (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
 
-        // Transfer fees
-        if (fees.unclaimed0 > 0) {
-            ERC20(token0).transfer(recipient, fees.unclaimed0);
-        }
-        if (fees.unclaimed1 > 0) {
-            ERC20(token1).transfer(recipient, fees.unclaimed1);
+        if (address(defaultPairToken) == address(0)) {
+            // If the default pair token is ETH, we need to transfer ETH
+            if (fees.unclaimed0 > 0) {
+                payable(recipient).transfer(fees.unclaimed0);
+            }
+            if (fees.unclaimed1 > 0) {
+                ERC20(token1).transfer(recipient, fees.unclaimed1);
+            }
+        } else {
+            // Transfer fees
+            if (fees.unclaimed0 > 0) {
+                ERC20(token0).transfer(recipient, fees.unclaimed0);
+            }
+            if (fees.unclaimed1 > 0) {
+                ERC20(token1).transfer(recipient, fees.unclaimed1);
+            }
         }
 
         emit FeesClaimed(recipient, tokenId, fees.unclaimed0, fees.unclaimed1);
