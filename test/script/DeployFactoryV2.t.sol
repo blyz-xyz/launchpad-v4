@@ -36,7 +36,7 @@ contract DeployFactoryV2 is Script {
 
         factoryV2 = new FairLaunchFactoryV2(
             poolManagerAddress,
-            address(defaultPairToken),
+            // address(defaultPairToken),
             platformReserveAddress,
             positionManagerAddress,
             permit2Address,
@@ -50,14 +50,12 @@ contract DeployFactoryV2 is Script {
 
         string memory name = "RollupToken";
         string memory symbol = "GLT";
-        uint256 supply = 1_000_000_000 ether;
         address feeToken = address(0);
 
         // @Notice: CurrenciesOutOfOrderOrEqual
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
-            supply,
             200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );                

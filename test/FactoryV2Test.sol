@@ -12,7 +12,6 @@ contract FactoryV2Test is Test, TestConfig {
     FairLaunchFactoryV2 public factoryV2;
     address constant poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
     address constant positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
-    address constant wethAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4; // this address is not correct
     address constant platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
     address constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address constant protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
@@ -20,7 +19,6 @@ contract FactoryV2Test is Test, TestConfig {
     function setUp() public {
         factoryV2 = new FairLaunchFactoryV2(
             poolManagerAddress,
-            wethAddress,
             platformReserveAddress,
             positionManagerAddress,
             permit2Address,
@@ -44,7 +42,6 @@ contract FactoryV2Test is Test, TestConfig {
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
-            supply,
             207243,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );
