@@ -16,6 +16,10 @@ library Constants {
     uint160 public constant SQRT_PRICE_1000_100 = 250541448375047931186413801569;
     uint160 public constant SQRT_PRICE_1010_100 = 251791039410471229173201122529;
     uint160 public constant SQRT_PRICE_10000_100 = 792281625142643375935439503360;
+    // These are the sqrtPriceX96 values for 1, 5, and 10 ETH market cap of the launched token
+    uint160 public constant SQRT_PRICE_1000000000_1 = 2505414483750479311864138015696063;
+    uint160 public constant SQRT_PRICE_1000000000_5 = 1120455419495722798374638764549163;
+    uint160 public constant SQRT_PRICE_1000000000_10 = 792281625142643375935439503360000;
 
     uint256 constant MAX_UINT256 = type(uint256).max;
     uint128 constant MAX_UINT128 = type(uint128).max;
