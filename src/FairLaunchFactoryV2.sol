@@ -29,9 +29,9 @@ contract FairLaunchFactoryV2 {
     address public protocolOwner;
 
     // fee expressed in pips, i.e. 10000 = 1%
-    uint24 public constant POOL_FEE = 10_000;
+    uint24 public constant POOL_FEE = 20_000;
     // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
-    int24 public constant TICK_SPACING = 200;
+    int24 public constant TICK_SPACING = 400;
     // if (tick % tickSpacing != 0) revert TickMisaligned(tick, tickSpacing); // custom error 0xd4d8f3e6
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
@@ -82,8 +82,8 @@ contract FairLaunchFactoryV2 {
 
     /// @dev Default fee configuration
     FeeConfig public defaultFeeConfig = FeeConfig({
-        creatorLPFeeBps: 5000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
-        protocolBaseBps: 200, // 2.00% to protocol
+        creatorLPFeeBps: 10_000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
+        protocolBaseBps: 100, // 1.00% to protocol
         creatorBaseBps: 100, // 1.00% to creator
         feeToken: address(0),
         creator: address(0)
@@ -343,8 +343,8 @@ contract FairLaunchFactoryV2 {
 
         // Split fees according to configuration
         FeeConfig memory config = tokenFeeConfig[token];
-        uint256 creatorFee0 = (totalFee0 * config.creatorLPFeeBps) / 10_000;
-        uint256 creatorFee1 = (totalFee1 * config.creatorLPFeeBps) / 10_000;
+        uint256 creatorFee0 = (totalFee0 * config.creatorLPFeeBps) / uint256(POOL_FEE);
+        uint256 creatorFee1 = (totalFee1 * config.creatorLPFeeBps) / uint256(POOL_FEE);
         uint256 protocolFee0 = totalFee0 - creatorFee0;
         uint256 protocolFee1 = totalFee1 - creatorFee1;
 
