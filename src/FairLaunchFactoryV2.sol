@@ -470,7 +470,7 @@ contract FairLaunchFactoryV2 {
         returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount)
     {
         creatorAmount = (totalSupply * 100) / 10_000;
-        protocolAmount = (totalSupply * 200) / 10_000;
+        protocolAmount = (totalSupply * 100) / 10_000;
         lpAmount = totalSupply - creatorAmount - protocolAmount;
     }
 
