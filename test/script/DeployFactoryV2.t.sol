@@ -14,18 +14,6 @@ contract DeployFactoryV2 is Script {
 
     function run() public returns (IPoolManager manager) {
         vm.startBroadcast();
-
-        // deploy an ERC20 token
-        RollupToken defaultPairToken = new RollupToken("Angel", "AGL");
-        console2.log("defaultPairToken", address(defaultPairToken));
-        
-        // it seems that the address is fixed in the failed attempt RollupToken@0x0B5E0f66b806d8596cA6E141d5B0CaE3F7A0bE32
-
-        // use a predeployed ERC20 token
-        // address defaultPairToken = 0x938715A1ad55BD6948763A60a77027c9DBD6A5cc;
-        vm.stopBroadcast();
-
-        vm.startBroadcast();
         // Uniswap deployment on Sepolia
         // refs: https://docs.uniswap.org/contracts/v4/deployments#sepolia-11155111
         address poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
@@ -55,7 +43,7 @@ contract DeployFactoryV2 is Script {
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
-            207243,
+            200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );                
 

@@ -42,7 +42,7 @@ contract FactoryV2Test is Test, TestConfig {
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
-            207243,
+            200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );
     }
@@ -53,7 +53,7 @@ contract FactoryV2Test is Test, TestConfig {
         (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount) = 
             factoryV2.calculateSupplyAllocation(totalSupply);
         assertEq(creatorAmount, 10_000_000*10e18);
-        assertEq(protocolAmount, 20_000_000*10e18);
-        assertEq(lpAmount, 970_000_000*10e18);
+        assertEq(protocolAmount, 10_000_000*10e18);
+        assertEq(lpAmount, 980_000_000*10e18);
     }
 }

@@ -32,6 +32,7 @@ contract FairLaunchFactoryV2 {
     uint24 public constant POOL_FEE = 10_000;
     // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
     int24 public constant TICK_SPACING = 200;
+    // if (tick % tickSpacing != 0) revert TickMisaligned(tick, tickSpacing); // custom error 0xd4d8f3e6
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
     // --- liquidity position configuration --- //
@@ -152,14 +153,16 @@ contract FairLaunchFactoryV2 {
 
         // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
-        newToken = new RollupToken(name, symbol);
-
-        // RollupToken rollupToken = RollupToken(newToken);
-
-        // Mint allocations
-        newToken.mint(creator, creatorAmount);
-        newToken.mint(platformReserve, protocolAmount);
-        newToken.mint(address(this), lpSupply);
+        newToken = new RollupToken(
+            name,
+            symbol,
+            creator,
+            creatorAmount,
+            platformReserve,
+            protocolAmount,
+            address(this),
+            lpSupply
+        );
 
         // Set FeeConfig
         // Set up fee configuration
