@@ -102,7 +102,7 @@ contract FairLaunchFactoryV2 {
                                 EVENT
     //////////////////////////////////////////////////////////////*/
 
-    event TokenLaunched(address token, address creator, PoolId poolId);
+    event TokenLaunched(address token, address creator, PoolId poolId, uint256 tokenId);
 
     /// @param tokenId The ID of the NFT Position
     /// @param creatorFee0 The amount of token0 fees for the creator
@@ -268,10 +268,16 @@ contract FairLaunchFactoryV2 {
         // if the pool is an ETH pair, native tokens are to be transferred
         uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value : 0;
 
+        // get the ID that will be used for the next minted liquidity position
+        uint256 tokenId = IPositionManager(positionManager).nextTokenId();
+
         // multicall to atomically create pool & add liquidity
         IPositionManager(positionManager).multicall{value: valueToPass}(params);
 
-        emit TokenLaunched(address(newToken), msg.sender, key.toId());
+        // Store the position ID
+        tokenPositionIds[address(newToken)] = tokenId;
+
+        emit TokenLaunched(address(newToken), msg.sender, key.toId(), tokenId);
     }
 
     /// @notice Set the default pair token for the factory
