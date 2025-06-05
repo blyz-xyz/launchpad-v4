@@ -82,7 +82,7 @@ contract FairLaunchFactoryV2 {
 
     /// @dev Default fee configuration
     FeeConfig public defaultFeeConfig = FeeConfig({
-        creatorLPFeeBps: 10_000, // 50% of LP fees to creator (50% implicit Protocol LP fee)
+        creatorLPFeeBps: uint16(POOL_FEE / 2), // 50% of LP fees to creator (50% implicit Protocol LP fee)
         protocolBaseBps: 100, // 1.00% to protocol
         creatorBaseBps: 100, // 1.00% to creator
         feeToken: address(0),
@@ -344,8 +344,16 @@ contract FairLaunchFactoryV2 {
         }
 
         // calculate the unclaimed fees
-        uint256 totalFee0 = tokenBalanceAfter - tokenBalanceBefore;
-        uint256 totalFee1 = pairTokenBalanceAfter - pairTokenBalanceBefore;
+        uint256 totalFee0;
+        uint256 totalFee1;
+
+        if (address(token) < address(defaultPairToken)) {
+            totalFee0 = tokenBalanceAfter - tokenBalanceBefore;
+            totalFee1 = pairTokenBalanceAfter - pairTokenBalanceBefore;
+        } else {
+            totalFee0 = pairTokenBalanceAfter - pairTokenBalanceBefore;
+            totalFee1 = tokenBalanceAfter - tokenBalanceBefore;
+        }
 
         // Split fees according to configuration
         FeeConfig memory config = tokenFeeConfig[token];
