@@ -32,11 +32,8 @@ contract DeployFactoryV2 is Script {
 
         console2.log("FairLaunchFactoryV2", address(factoryV2));
 
-        // get the initial tick from SQRT_PRICE_1_1
-
-
-        string memory name = "RollupToken";
-        string memory symbol = "GLT";
+        string memory name = "RollupToken1P";
+        string memory symbol = "GLT1P";
         address feeToken = address(0);
 
         // @Notice: CurrenciesOutOfOrderOrEqual
