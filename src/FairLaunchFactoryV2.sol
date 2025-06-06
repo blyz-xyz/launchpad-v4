@@ -169,7 +169,7 @@ contract FairLaunchFactoryV2 {
             protocolBaseBps: defaultFeeConfig.protocolBaseBps,
             creatorBaseBps: defaultFeeConfig.creatorBaseBps,
             feeToken: address(defaultPairToken), // default fee token is ETH
-            creator: msg.sender
+            creator: creator
         });
         tokenFeeConfig[address(newToken)] = config;
 
@@ -275,7 +275,7 @@ contract FairLaunchFactoryV2 {
         // Store the position ID
         tokenPositionIds[address(newToken)] = tokenId;
 
-        emit TokenLaunched(address(newToken), msg.sender, key.toId(), tokenId);
+        emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);
     }
 
     /// @notice Set the default pair token for the factory
