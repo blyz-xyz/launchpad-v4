@@ -35,14 +35,6 @@ contract FairLaunchFactoryV2 {
     // if (tick % tickSpacing != 0) revert TickMisaligned(tick, tickSpacing); // custom error 0xd4d8f3e6
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
-    // --- liquidity position configuration --- //
-    // uint256 public token0Amount = 1e18;
-    // uint256 public token1Amount = 1e18;
-    address public token0;
-    address public token1;
-    uint256 public amount0;
-    uint256 public amount1;
-
     // positionManager on Sepolia
     // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
     IPositionManager public immutable positionManager;
@@ -181,8 +173,13 @@ contract FairLaunchFactoryV2 {
         });
         tokenFeeConfig[address(newToken)] = config;
 
-        int24 tickLower = initialTick; // must be a multiple of tickSpacing
-        int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+        // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
+        address token0 = address(defaultPairToken);
+        address token1 = address(newToken);    
+        uint256 amount0 = 0;
+        uint256 amount1 = lpSupply;
+        int24 tickLower = TickMath.minUsableTick(TICK_SPACING);
+        int24 tickUpper = initialTick;
         uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
 
         // Construct pool key
@@ -192,14 +189,9 @@ contract FairLaunchFactoryV2 {
             token1 = address(defaultPairToken);
             amount0 = lpSupply;
             amount1 = 0;
-        } else {
-            token0 = address(defaultPairToken);
-            token1 = address(newToken);
-            amount0 = 0;
-            amount1 = lpSupply;
-            tickLower = TickMath.minUsableTick(TICK_SPACING);
-            tickUpper = initialTick;
-            startingPrice = TickMath.getSqrtPriceAtTick(initialTick); // using tickLower seems to fail the tx
+            tickLower = initialTick; // must be a multiple of tickSpacing
+            tickUpper = TickMath.maxUsableTick(TICK_SPACING);
+            startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
         }
 
         PoolKey memory key = PoolKey({
