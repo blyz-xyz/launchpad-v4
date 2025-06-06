@@ -391,15 +391,15 @@ contract FairLaunchFactoryV2 {
                 payable(recipient).transfer(fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                ERC20(token1).transfer(recipient, fees.unclaimed1);
+                IERC20(token1).transfer(recipient, fees.unclaimed1);
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                ERC20(token0).transfer(recipient, fees.unclaimed0);
+                IERC20(token0).transfer(recipient, fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                ERC20(token1).transfer(recipient, fees.unclaimed1);
+                IERC20(token1).transfer(recipient, fees.unclaimed1);
             }
         }
 
@@ -434,15 +434,15 @@ contract FairLaunchFactoryV2 {
                 payable(recipient).transfer(fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                ERC20(token1).transfer(recipient, fees.unclaimed1);
+                IERC20(token1).transfer(recipient, fees.unclaimed1);
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                ERC20(token0).transfer(recipient, fees.unclaimed0);
+                IERC20(token0).transfer(recipient, fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                ERC20(token1).transfer(recipient, fees.unclaimed1);
+                IERC20(token1).transfer(recipient, fees.unclaimed1);
             }
         }
 
