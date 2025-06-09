@@ -16,11 +16,14 @@ contract DeployERC20 is Script {
         address creator = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
         address platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
         address lpAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        // a fake ipfs cid
+        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e5e";
 
         // deploy an ERC20 token
         RollupToken defaultPairToken = new RollupToken(
             "RollupToken",
             "GLT",
+            tokenURI,
             creator,
             10_000_000 * 10 ** 18, // 10 million tokens for creator
             platformReserveAddress,

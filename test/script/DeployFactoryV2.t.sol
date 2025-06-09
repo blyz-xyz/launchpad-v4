@@ -21,13 +21,15 @@ contract DeployFactoryV2 is Script {
         address positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
         address permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
         address protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        string memory baseTokenURI = "ipfs://";
 
         factoryV2 = new FairLaunchFactoryV2(
             poolManagerAddress,
             platformReserveAddress,
             positionManagerAddress,
             permit2Address,
-            protocolOwnerAddress
+            protocolOwnerAddress,
+            baseTokenURI
         );
 
         console2.log("FairLaunchFactoryV2", address(factoryV2));
@@ -35,11 +37,13 @@ contract DeployFactoryV2 is Script {
         string memory name = "RollupToken1P";
         string memory symbol = "GLT1P";
         address feeToken = address(0);
+        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
 
         // @Notice: CurrenciesOutOfOrderOrEqual
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
+            tokenURI,
             207200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );                

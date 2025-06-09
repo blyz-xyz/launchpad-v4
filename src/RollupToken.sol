@@ -8,11 +8,13 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
 
 contract RollupToken is ERC20Permit, ERC20Votes {
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
-    uint256 public mintedSupply = 0 ether;
+    /// @dev tokenURI The URI for the token metadata.
+    string public tokenURI;
 
     constructor(
         string memory name,
         string memory symbol,
+        string memory _tokenURI,
         address creator,
         uint256 creatorAmount,
         address platformReserve,
@@ -25,6 +27,8 @@ contract RollupToken is ERC20Permit, ERC20Votes {
         ERC20Votes()
     {
         require(creatorAmount + protocolAmount + lpAmount <= TOTAL_SUPPLY, "RollupToken: Total supply exceeded");
+
+        tokenURI = _tokenURI;
 
         _mint(creator, creatorAmount);
         _mint(platformReserve, protocolAmount);

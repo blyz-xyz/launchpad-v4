@@ -15,6 +15,7 @@ contract FactoryV2Test is Test, TestConfig {
     address constant platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
     address constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address constant protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+    string constant baseTokenURI = "ipfs://";
 
     function setUp() public {
         factoryV2 = new FairLaunchFactoryV2(
@@ -22,7 +23,8 @@ contract FactoryV2Test is Test, TestConfig {
             platformReserveAddress,
             positionManagerAddress,
             permit2Address,
-            protocolOwnerAddress
+            protocolOwnerAddress,
+            baseTokenURI
         );
     }
 
@@ -36,12 +38,14 @@ contract FactoryV2Test is Test, TestConfig {
         vm.startPrank(creator);
         string memory name = "RollupToken";
         string memory symbol = "GLT";
+        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
         uint256 supply = 1_000_000_000 ether;
         address feeToken = address(0);
 
         (RollupToken token) = factoryV2.launchToken(
             name,
             symbol,
+            tokenURI,
             207200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
         );
