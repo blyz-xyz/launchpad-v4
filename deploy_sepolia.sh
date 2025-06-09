@@ -4,11 +4,11 @@
 source .env
 
 # Set the addresses for the Sepolia network
-poolManagerAddress=0xE03A1074c86CFeDd5C142C4F04F1a1536e203543
-platformReserveAddress=0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c
-positionManagerAddress=0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4
+poolManagerAddress=0x000000000004444c5dc75cb358380d2e3de08a90
+platformReserveAddress=0x022Ca046a4452cCc4C578eb430A60C660ba1b74d
+positionManagerAddress=0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e
 permit2Address=0x000000000022D473030F116dDEE9F6B43aC78BA3
-protocolOwnerAddress=0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c
+protocolOwnerAddress=0x022Ca046a4452cCc4C578eb430A60C660ba1b74d
 
 # Set the local solc compiler version
 solcVersion="0.8.26+commit.8a97fa7a"

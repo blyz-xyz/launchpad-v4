@@ -13,9 +13,9 @@ contract DeployERC20 is Script {
     function run() public {
         vm.startBroadcast();
 
-        address creator = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
-        address platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
-        address lpAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        address creator = 0x022Ca046a4452cCc4C578eb430A60C660ba1b74d;
+        address platformReserveAddress = 0x022Ca046a4452cCc4C578eb430A60C660ba1b74d;
+        address lpAddress = 0x022Ca046a4452cCc4C578eb430A60C660ba1b74d;
 
         // deploy an ERC20 token
         RollupToken defaultPairToken = new RollupToken(
