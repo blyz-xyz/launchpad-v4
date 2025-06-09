@@ -116,6 +116,12 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @param oldPairToken The address of the old default pair token
     event SetDefaultPairToken(address indexed newPairToken, address indexed oldPairToken);
 
+    /// @notice Emitted when the base token URI is set
+    /// @param newBaseTokenURI The new base token URI
+    /// @dev This URI is used to construct the token URI for each token
+    /// @dev The token URI is constructed as baseTokenURI + tokenURI
+    event SetBaseTokenURI(string newBaseTokenURI);
+
     /// @notice Emitted when ETH is received by the contract
     event Received(address, uint);
 
@@ -127,13 +133,15 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         address _platformReserve,
         address _positionManager,
         address _permit2,
-        address _protocolOwner
+        address _protocolOwner,
+        string memory _baseTokenURI
     ) {
         poolManager = IPoolManager(_poolManager);
         platformReserve = _platformReserve;
         PERMIT2 = IAllowanceTransfer(_permit2);
         positionManager = IPositionManager(_positionManager);
         protocolOwner = _protocolOwner;
+        baseTokenURI = _baseTokenURI;
     }
 
 
@@ -141,6 +149,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     function launchToken(
         string memory name,
         string memory symbol,
+        string memory tokenURI,
         int24 initialTick,
         // bytes32 salt,
         address creator
@@ -156,6 +165,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         newToken = new RollupToken(
             name,
             symbol,
+            string.concat(baseTokenURI, tokenURI),
             creator,
             creatorAmount,
             platformReserve,
@@ -288,6 +298,20 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         emit SetDefaultPairToken(_defaultPairToken, defaultPairToken);
         defaultPairToken = _defaultPairToken;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             ADMIN CONTROLS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Set the new base token URI
+    function setBaseTokenURI(string memory newBaseTokenURI) external {
+        if (msg.sender != protocolOwner) 
+            revert Unauthorized();
+
+        baseTokenURI = newBaseTokenURI;
+
+        emit SetBaseTokenURI(newBaseTokenURI);
     }
 
 
