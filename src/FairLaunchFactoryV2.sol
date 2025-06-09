@@ -10,11 +10,12 @@ import {IPoolInitializer_v4} from "v4-periphery/src/interfaces/IPoolInitializer_
 import "v4-periphery/src/libraries/Actions.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "./RollupToken.sol";
 import "./utils/Constants.sol";
 
-contract FairLaunchFactoryV2 {
+contract FairLaunchFactoryV2 is IERC721Receiver {
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -23,6 +24,7 @@ contract FairLaunchFactoryV2 {
     error InvalidToken();
     error NoFeesToClaim();
     error Unauthorized();
+    error NotUniswapPositionManager();
 
     IPoolManager public immutable poolManager;
     address public defaultPairToken = address(0); // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
@@ -499,5 +501,17 @@ contract FairLaunchFactoryV2 {
     /// @dev This function is used to receive ETH when the factory is called with a value
     fallback() external payable {
         emit FallbackCalled(msg.sender, msg.value, msg.data);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                          POSITION MANAGEMENT
+    //////////////////////////////////////////////////////////////*/
+
+    function onERC721Received(address, address, uint256, bytes calldata) external virtual override returns (bytes4) {
+        if (msg.sender != address(positionManager)) {
+            revert NotUniswapPositionManager();
+        }
+
+        return this.onERC721Received.selector;
     }
 }
