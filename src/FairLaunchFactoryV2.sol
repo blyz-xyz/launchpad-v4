@@ -13,7 +13,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "./RollupToken.sol";
-import "./utils/Constants.sol";
 
 contract FairLaunchFactoryV2 is IERC721Receiver {
 
@@ -504,17 +503,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         creatorAmount = (totalSupply * 100) / 10_000;
         protocolAmount = (totalSupply * 100) / 10_000;
         lpAmount = totalSupply - creatorAmount - protocolAmount;
-    }
-
-    /// @notice Calculates the greatest tick value such that getSqrtPriceAtTick(tick) <= sqrtPriceX96
-    /// @dev Throws in case sqrtPriceX96 < MIN_SQRT_PRICE, as MIN_SQRT_PRICE is the lowest value getSqrtPriceAtTick may
-    /// ever return.
-    /// @param sqrtPriceX96 The sqrt price for which to compute the tick as a Q64.96
-    /// @return tick The greatest tick for which the getSqrtPriceAtTick(tick) is less than or equal to the input sqrtPriceX96
-    function getTickAtSqrtPriceX96(uint160 sqrtPriceX96) public pure returns (int24 tick) {
-        // This is a utility function to get the tick at a given sqrtPriceX96
-        // It uses the TickMath library to calculate the tick
-        return TickMath.getTickAtSqrtPrice(sqrtPriceX96);
     }
 
     /// @dev This function is called when the contract receives ETH
