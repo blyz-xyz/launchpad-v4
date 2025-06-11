@@ -24,10 +24,12 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     error NoFeesToClaim();
     error Unauthorized();
     error NotUniswapPositionManager();
+    error Deprecated();
 
     IPoolManager public immutable poolManager;
     address public defaultPairToken = address(0); // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
     address public protocolOwner;
+    bool public deprecated = false; // if true, the factory is deprecated and no new tokens can be launched
 
     // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 20_000;
@@ -127,6 +129,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @notice Emitted when the fallback function is called
     event FallbackCalled(address sender, uint amount, bytes data);
 
+    /// @notice Emitted when the factory is deprecated
+    event SetDeprecated(bool deprecated);
+
     constructor(
         address _poolManager,
         address _platformReserve,
@@ -155,6 +160,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     ) public payable
         returns (RollupToken newToken)
     {
+
+        if (deprecated) 
+            revert Deprecated();
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
             calculateSupplyAllocation(TOTAL_SUPPLY);
@@ -513,6 +521,18 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @dev This function is used to receive ETH when the factory is called with a value
     fallback() external payable {
         emit FallbackCalled(msg.sender, msg.value, msg.data);
+    }
+
+    /// @notice Set the deprecated flag for the factory
+    /// @param _deprecated The new value for the deprecated flag
+    /// @dev If deprecated is set to true, no new tokens can be launched
+    /// @dev Only the protocol owner can call this function
+    function setDeprecated(bool _deprecated) external {
+        if (msg.sender != protocolOwner)
+            revert Unauthorized();
+
+        deprecated = _deprecated;
+        emit SetDeprecated(deprecated);
     }
 
     /*//////////////////////////////////////////////////////////////
