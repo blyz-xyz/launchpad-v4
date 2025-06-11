@@ -25,11 +25,13 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     error Unauthorized();
     error NotUniswapPositionManager();
     error Deprecated();
+    error InsufficientLaunchFee();
 
     IPoolManager public immutable poolManager;
     address public defaultPairToken = address(0); // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
     address public protocolOwner;
     bool public deprecated = false; // if true, the factory is deprecated and no new tokens can be launched
+    uint256 public launchFee = 0 ether; // launch fee in ETH, can be set by the protocol owner
 
     // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 20_000;
@@ -132,6 +134,10 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @notice Emitted when the factory is deprecated
     event SetDeprecated(bool deprecated);
 
+    /// @notice Emitted when the launch fee is set
+    /// @param newLaunchFee The new launch fee in wei
+    event SetLaunchFee(uint256 newLaunchFee);
+
     constructor(
         address _poolManager,
         address _platformReserve,
@@ -163,6 +169,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         if (deprecated) 
             revert Deprecated();
+
+        if (msg.value < launchFee)
+            revert InsufficientLaunchFee();
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
             calculateSupplyAllocation(TOTAL_SUPPLY);
@@ -283,7 +292,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value : 0;
+        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value - launchFee : 0;
 
         // get the ID that will be used for the next minted liquidity position
         uint256 tokenId = IPositionManager(positionManager).nextTokenId();
@@ -534,6 +543,20 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         deprecated = _deprecated;
         emit SetDeprecated(deprecated);
     }
+
+    /// @notice Set the launch fee for the factory
+    /// @param newLaunchFee The new launch fee in wei
+    /// @dev The launch fee is the amount of ETH required to launch a new token
+    /// @dev Only the protocol owner can call this function
+    function setLaunchFee(uint256 newLaunchFee) external {
+        if (msg.sender != protocolOwner) 
+            revert Unauthorized();
+
+        launchFee = newLaunchFee;
+        emit SetLaunchFee(newLaunchFee);
+    }
+
+
 
     /*//////////////////////////////////////////////////////////////
                           POSITION MANAGEMENT
