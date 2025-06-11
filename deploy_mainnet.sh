@@ -16,3 +16,23 @@ solcVersion="0.8.26+commit.8a97fa7a"
 
 forge create --chain mainnet --rpc-url $MAINNET_RPC_URL --via-ir --optimizer-runs 100 --compiler-version $solcVersion --interactive --broadcast --verify src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 \
     --constructor-args $poolManagerAddress $platformReserveAddress $positionManagerAddress $permit2Address $protocolOwnerAddress $baseTokenURI
+
+# WARNING: The Etherscan verification step can occasionally fail (e.g., API rate limits?).
+#          This **only** verifies an already‑deployed contract.
+# deployedContractAddress="0x8D69805a5264Dd82894ED25Ea11Cca2719BD2C37"
+# encodedArgs=$(cast abi-encode \
+#   "constructor(address,address,address,address,address,string)" \
+#   $poolManagerAddress \
+#   $platformReserveAddress \
+#   $positionManagerAddress \
+#   $permit2Address \
+#   $protocolOwnerAddress \
+#   $baseTokenURI)
+# forge verify-contract \
+#     --chain mainnet \
+#     --compiler-version $solcVersion \
+#     --optimizer-runs 100 \
+#     --via-ir \
+#     --etherscan-api-key $ETHERSCAN_API_KEY \
+#     --constructor-args $encodedArgs \
+#     $deployedContractAddress src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 --watch
