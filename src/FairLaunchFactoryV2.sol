@@ -34,9 +34,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     uint256 public launchFee = 0 ether; // launch fee in ETH, can be set by the protocol owner
 
     // fee expressed in pips, i.e. 10000 = 1%
-    uint24 public constant POOL_FEE = 20_000;
+    uint24 public constant POOL_FEE = 10_000;
     // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
-    int24 public constant TICK_SPACING = 400;
+    int24 public constant TICK_SPACING = 200;
     // if (tick % tickSpacing != 0) revert TickMisaligned(tick, tickSpacing); // custom error 0xd4d8f3e6
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
