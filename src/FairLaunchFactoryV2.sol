@@ -169,8 +169,8 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         string memory symbol,
         string memory tokenURI,
         int24 initialTick,
-        // bytes32 salt,
-        address creator
+        address creator,
+        uint128 amountIn // amount of token 0 to swap for the new token
     ) public payable
         returns (RollupToken newToken)
     {
@@ -285,7 +285,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value - launchFee : 0;
+        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
 
         // get the ID that will be used for the next minted liquidity position
         uint256 tokenId = IPositionManager(positionManager).nextTokenId();
@@ -296,130 +296,11 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Store the position ID
         tokenPositionIds[address(newToken)] = tokenId;
 
-        emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);      
-    }
+        emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);     
 
-
-    /// @notice Launch a new token and buy it with the specified amount of token 0
-    function launchTokenAndBuy(
-        string memory name,
-        string memory symbol,
-        string memory tokenURI,
-        int24 initialTick,
-        address creator,
-        uint256 amountIn // amount of token 0 to swap for the new token
-    ) public payable
-        returns (RollupToken newToken)
-    {
-
-        if (deprecated) 
-            revert Deprecated();
-
-        if (msg.value < launchFee + amountIn)
-            revert InsufficientLaunchFee();
-
-        (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
-            calculateSupplyAllocation(TOTAL_SUPPLY);
-
-        // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
-
-        newToken = new RollupToken(
-            name,
-            symbol,
-            string.concat(baseTokenURI, tokenURI),
-            creator,
-            creatorAmount,
-            platformReserve,
-            protocolAmount,
-            address(this),
-            lpSupply
-        );
-
-        // Set FeeConfig
-        // Set up fee configuration
-        FeeConfig memory config = FeeConfig({
-            creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
-            protocolBaseBps: defaultFeeConfig.protocolBaseBps,
-            creatorBaseBps: defaultFeeConfig.creatorBaseBps,
-            feeToken: address(defaultPairToken), // default fee token is ETH
-            creator: creator
-        });
-        tokenFeeConfig[address(newToken)] = config;
-
-        // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
-        // PoolKey must have currencies where address(currency0) < address(currency1), otherwise it will revert with CurrenciesOutOfOrderOrEqual error
-        address token0 = address(defaultPairToken);
-        address token1 = address(newToken);    
-        uint256 amount0 = 0;
-        uint256 amount1 = lpSupply;
-        int24 tickLower = TickMath.minUsableTick(TICK_SPACING);
-        int24 tickUpper = initialTick;
-        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
-
-        PoolKey memory key = PoolKey({
-            currency0: Currency.wrap(token0),
-            currency1: Currency.wrap(token1),
-            fee: POOL_FEE,
-            tickSpacing: TICK_SPACING,
-            hooks: IHooks(address(0x0)) // no hooks used
-        });
-
-        PoolId poolId = key.toId();
-        poolToToken[poolId] = address(newToken);
-
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            startingPrice,
-            TickMath.getSqrtPriceAtTick(tickLower),
-            TickMath.getSqrtPriceAtTick(tickUpper),
-            amount0,
-            amount1
-        );
-
-        bytes memory hookData = ""; // no hook data
-        (bytes memory actions, bytes[] memory mintParams) =
-            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0, amount1, address(this), hookData);
-
-        // the parameters provided to multicall()
-        bytes[] memory params = new bytes[](2);
-
-        // The first call, params[0], will encode initializePool parameters
-        params[0] = abi.encodeWithSelector(
-            IPoolInitializer_v4.initializePool.selector,
-            key,
-            startingPrice // TickMath.getSqrtPriceAtTick(initialTick)
-        );
-
-        uint256 deadline = block.timestamp + 60;
-        // mint liquidity
-        params[1] = abi.encodeWithSelector(
-            IPositionManager(positionManager).modifyLiquidities.selector, abi.encode(actions, mintParams), deadline
-        );
-
-        // approve the tokens
-
-        // approve the defaultPairToken
-        // Note: if the defaultPairToken is ETH, we don't need to approve it
-        if (address(defaultPairToken) != address(0)) {
-            // if the defaultPairToken is an ERC20 token, we need to approve it
-            IERC20(defaultPairToken).approve(address(PERMIT2), type(uint256).max);
-            // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
-            PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
-        }
-
-        // approve the newToken
-        IERC20(newToken).approve(address(PERMIT2), type(uint256).max);
-        PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
-
-        // get the ID that will be used for the next minted liquidity position
-        uint256 tokenId = IPositionManager(positionManager).nextTokenId();
-
-        // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: 0}(params);
-
-        // Store the position ID
-        tokenPositionIds[address(newToken)] = tokenId;
-
-        emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);
+        /// @notice Check if to execute creator buy
+        if (amountIn == 0)
+            return newToken; // no creator buy, just finish the function
 
         // allow creator to buy the token
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -437,18 +318,18 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
                 zeroForOne: true, // true if we're swapping token0 for token1
-                amountIn: uint128(amountIn), // amount of tokens we're swapping
-                amountOutMinimum: uint128(0), // minimum amount we expect to receive
-                hookData: bytes("")             // no hook data needed
+                amountIn: amountIn, // amount of tokens we're swapping
+                amountOutMinimum: 0, // minimum amount we expect to receive
+                hookData: bytes("") // no hook data needed
             })
         );
 
         // Second parameter: specify input tokens for the swap
         // encode SETTLE_ALL parameters
-        swapParams[1] = abi.encode(key.currency0, uint128(amountIn), true);
+        swapParams[1] = abi.encode(key.currency0, amountIn, true);
 
         // Third parameter: specify output tokens from the swap
-        swapParams[2] = abi.encode(key.currency1, uint128(0));
+        swapParams[2] = abi.encode(key.currency1, 0);
 
         // execute the swap
         bytes[] memory inputs = new bytes[](1);
@@ -456,8 +337,21 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Combine actions and params into inputs
         inputs[0] = abi.encode(swapActions, swapParams);
 
+        // check the balances of the token and the defaultPairToken before collecting fees
+        uint256 tokenBalanceBeforeSwap = IERC20(token1).balanceOf(address(this));
+
         // Execute the swap
         router.execute{value: msg.value - launchFee}(commands, inputs, block.timestamp + 60);
+
+        uint256 tokenBalanceAfterSwap = IERC20(token1).balanceOf(address(this));
+
+        // since the swapped token is received in the contract, we can transfer it to the creator
+        uint256 amountReceived = tokenBalanceAfterSwap - tokenBalanceBeforeSwap;
+        if (amountReceived > 0) {
+            // transfer the received tokens to the creator
+            bool success = IERC20(token1).transfer(creator, amountReceived);
+            require (success, "Transfer failed");
+        }
     }
 
     /// @notice Set the default pair token for the factory
