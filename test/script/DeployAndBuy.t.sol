@@ -43,7 +43,7 @@ contract DeployAndBuy is Script {
         string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
 
         // @Notice: CurrenciesOutOfOrderOrEqual
-        (RollupToken token) = factoryV2.launchTokenAndBuy{
+        (RollupToken token) = factoryV2.launchToken{
             value: 0.01 ether // 0.1 ETH for the buy
         }(
             name,
