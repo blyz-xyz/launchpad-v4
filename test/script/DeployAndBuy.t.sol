@@ -6,7 +6,7 @@ import "./../../src/RollupToken.sol";
 import "forge-std/console2.sol";
 import "forge-std/Script.sol";
 
-contract DeployFactoryV2 is Script {
+contract DeployAndBuy is Script {
     FairLaunchFactoryV2 public factoryV2;
 
     function setUp() public {
@@ -22,6 +22,7 @@ contract DeployFactoryV2 is Script {
         address payable universalRouterAddress=payable(address(0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b));
         address platformReserveAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
         address protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+        address creator = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
         string memory baseTokenURI = "ipfs://";
 
         factoryV2 = new FairLaunchFactoryV2(
@@ -42,13 +43,16 @@ contract DeployFactoryV2 is Script {
         string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
 
         // @Notice: CurrenciesOutOfOrderOrEqual
-        (RollupToken token) = factoryV2.launchToken(
+        (RollupToken token) = factoryV2.launchTokenAndBuy{
+            value: 0.01 ether // 0.1 ETH for the buy
+        }(
             name,
             symbol,
             tokenURI,
             207200,
-            address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c)
-        );                
+            creator,
+            0.01 ether // 0.1 ETH for the buy
+        );
 
         vm.stopBroadcast();
     }

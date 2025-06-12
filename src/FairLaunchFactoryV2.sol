@@ -9,9 +9,12 @@ import "v4-core/test/utils/LiquidityAmounts.sol";
 import {IPoolInitializer_v4} from "v4-periphery/src/interfaces/IPoolInitializer_v4.sol";
 import "v4-periphery/src/libraries/Actions.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
+import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
+import "universal-router/contracts/libraries/Commands.sol";
+import "universal-router/contracts/UniversalRouter.sol";
 import "./RollupToken.sol";
 
 contract FairLaunchFactoryV2 is IERC721Receiver {
@@ -47,6 +50,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     // Note: Permit2 is also deployed to the same address on testnet Sepolia.
     // IAllowanceTransfer public immutable PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
     IAllowanceTransfer public immutable PERMIT2;
+
+    /// @dev The UniversalRouter contract is used to execute swaps and other actions
+    UniversalRouter public immutable router;
 
     /*//////////////////////////////////////////////////////////////
                               FEE CONFIG
@@ -140,16 +146,18 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
     constructor(
         address _poolManager,
-        address _platformReserve,
         address _positionManager,
         address _permit2,
+        address payable _universalRouter,
+        address _platformReserve,
         address _protocolOwner,
         string memory _baseTokenURI
     ) {
         poolManager = IPoolManager(_poolManager);
-        platformReserve = _platformReserve;
-        PERMIT2 = IAllowanceTransfer(_permit2);
         positionManager = IPositionManager(_positionManager);
+        PERMIT2 = IAllowanceTransfer(_permit2);
+        router = UniversalRouter(_universalRouter);
+        platformReserve = _platformReserve;
         protocolOwner = _protocolOwner;
         baseTokenURI = _baseTokenURI;
     }
@@ -233,21 +241,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         PoolId poolId = key.toId();
         poolToToken[poolId] = address(newToken);
 
-        // Option 1: Initialize the pool, called when no need to add initial liquidity
-        // poolManager.initialize(key, TickMath.getSqrtPriceAtTick(initialTick));
-
-        // Option 2: Add initial liquidity
-
-        // range of the position
-        // int24 tickLower = initialTick; // must be a multiple of tickSpacing
-        // int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
-        // slippage limits
-        // uint256 amount0Max = token0Amount + 1 wei;
-        // uint256 amount1Max = token1Amount + 1 wei;
-
-        // starting price of the pool, in sqrtPriceX96
-        // uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
-        // Converts token amounts to liquidity units
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             startingPrice,
             TickMath.getSqrtPriceAtTick(tickLower),
@@ -303,7 +296,168 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Store the position ID
         tokenPositionIds[address(newToken)] = tokenId;
 
+        emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);      
+    }
+
+
+    /// @notice Launch a new token and buy it with the specified amount of token 0
+    function launchTokenAndBuy(
+        string memory name,
+        string memory symbol,
+        string memory tokenURI,
+        int24 initialTick,
+        address creator,
+        uint256 amountIn // amount of token 0 to swap for the new token
+    ) public payable
+        returns (RollupToken newToken)
+    {
+
+        if (deprecated) 
+            revert Deprecated();
+
+        if (msg.value < launchFee + amountIn)
+            revert InsufficientLaunchFee();
+
+        (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
+            calculateSupplyAllocation(TOTAL_SUPPLY);
+
+        // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
+
+        newToken = new RollupToken(
+            name,
+            symbol,
+            string.concat(baseTokenURI, tokenURI),
+            creator,
+            creatorAmount,
+            platformReserve,
+            protocolAmount,
+            address(this),
+            lpSupply
+        );
+
+        // Set FeeConfig
+        // Set up fee configuration
+        FeeConfig memory config = FeeConfig({
+            creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
+            protocolBaseBps: defaultFeeConfig.protocolBaseBps,
+            creatorBaseBps: defaultFeeConfig.creatorBaseBps,
+            feeToken: address(defaultPairToken), // default fee token is ETH
+            creator: creator
+        });
+        tokenFeeConfig[address(newToken)] = config;
+
+        // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
+        // PoolKey must have currencies where address(currency0) < address(currency1), otherwise it will revert with CurrenciesOutOfOrderOrEqual error
+        address token0 = address(defaultPairToken);
+        address token1 = address(newToken);    
+        uint256 amount0 = 0;
+        uint256 amount1 = lpSupply;
+        int24 tickLower = TickMath.minUsableTick(TICK_SPACING);
+        int24 tickUpper = initialTick;
+        uint160 startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(token0),
+            currency1: Currency.wrap(token1),
+            fee: POOL_FEE,
+            tickSpacing: TICK_SPACING,
+            hooks: IHooks(address(0x0)) // no hooks used
+        });
+
+        PoolId poolId = key.toId();
+        poolToToken[poolId] = address(newToken);
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            startingPrice,
+            TickMath.getSqrtPriceAtTick(tickLower),
+            TickMath.getSqrtPriceAtTick(tickUpper),
+            amount0,
+            amount1
+        );
+
+        bytes memory hookData = ""; // no hook data
+        (bytes memory actions, bytes[] memory mintParams) =
+            _mintLiquidityParams(key, tickLower, tickUpper, liquidity, amount0, amount1, address(this), hookData);
+
+        // the parameters provided to multicall()
+        bytes[] memory params = new bytes[](2);
+
+        // The first call, params[0], will encode initializePool parameters
+        params[0] = abi.encodeWithSelector(
+            IPoolInitializer_v4.initializePool.selector,
+            key,
+            startingPrice // TickMath.getSqrtPriceAtTick(initialTick)
+        );
+
+        uint256 deadline = block.timestamp + 60;
+        // mint liquidity
+        params[1] = abi.encodeWithSelector(
+            IPositionManager(positionManager).modifyLiquidities.selector, abi.encode(actions, mintParams), deadline
+        );
+
+        // approve the tokens
+
+        // approve the defaultPairToken
+        // Note: if the defaultPairToken is ETH, we don't need to approve it
+        if (address(defaultPairToken) != address(0)) {
+            // if the defaultPairToken is an ERC20 token, we need to approve it
+            IERC20(defaultPairToken).approve(address(PERMIT2), type(uint256).max);
+            // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
+            PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
+        }
+
+        // approve the newToken
+        IERC20(newToken).approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
+
+        // get the ID that will be used for the next minted liquidity position
+        uint256 tokenId = IPositionManager(positionManager).nextTokenId();
+
+        // multicall to atomically create pool & add liquidity
+        IPositionManager(positionManager).multicall{value: 0}(params);
+
+        // Store the position ID
+        tokenPositionIds[address(newToken)] = tokenId;
+
         emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);
+
+        // allow creator to buy the token
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        // Encode V4Router actions
+        bytes memory swapActions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        bytes[] memory swapParams = new bytes[](3);
+
+        // First parameter: swap configuration
+        swapParams[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: key,
+                zeroForOne: true, // true if we're swapping token0 for token1
+                amountIn: uint128(amountIn), // amount of tokens we're swapping
+                amountOutMinimum: uint128(0), // minimum amount we expect to receive
+                hookData: bytes("")             // no hook data needed
+            })
+        );
+
+        // Second parameter: specify input tokens for the swap
+        // encode SETTLE_ALL parameters
+        swapParams[1] = abi.encode(key.currency0, uint128(amountIn), true);
+
+        // Third parameter: specify output tokens from the swap
+        swapParams[2] = abi.encode(key.currency1, uint128(0));
+
+        // execute the swap
+        bytes[] memory inputs = new bytes[](1);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(swapActions, swapParams);
+
+        // Execute the swap
+        router.execute{value: msg.value - launchFee}(commands, inputs, block.timestamp + 60);
     }
 
     /// @notice Set the default pair token for the factory
