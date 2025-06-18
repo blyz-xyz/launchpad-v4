@@ -492,13 +492,19 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         return (actions, params);
     }    
     
+
+    /// @dev Calculate the allocation of the total supply to LP, creator, and protocol
+    /// @param totalSupply The total supply of the token
+    /// @return lpAmount The amount allocated to LP
+    /// @return creatorAmount The amount allocated to the creator
+    /// @return protocolAmount The amount allocated to the protocol
     function calculateSupplyAllocation(uint256 totalSupply)
         public
         pure
         returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount)
     {
-        creatorAmount = (totalSupply * 100) / 10_000;
-        protocolAmount = (totalSupply * 100) / 10_000;
+        creatorAmount = (totalSupply * defaultFeeConfig.creatorBaseBps) / 10_000;
+        protocolAmount = (totalSupply * defaultFeeConfig.protocolBaseBps) / 10_000;
         lpAmount = totalSupply - creatorAmount - protocolAmount;
     }
 
