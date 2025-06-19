@@ -49,6 +49,7 @@ contract DeployFactoryV2 is Script {
             tokenURI,
             207200,
             creator,
+            address(0),
             0 ether
         );
 

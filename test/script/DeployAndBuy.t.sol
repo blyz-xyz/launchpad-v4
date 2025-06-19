@@ -51,6 +51,7 @@ contract DeployAndBuy is Script {
             tokenURI,
             207200,
             creator,
+            feeToken,
             0.01 ether // 0.1 ETH for the buy
         );
 

@@ -29,9 +29,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     error NotUniswapPositionManager();
     error Deprecated();
     error InsufficientLaunchFee();
+    error PairTokenNotSupported();
 
     IPoolManager public immutable poolManager;
-    address public defaultPairToken = address(0); // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
     address public protocolOwner;
     bool public deprecated = false; // if true, the factory is deprecated and no new tokens can be launched
     uint256 public launchFee = 0 ether; // launch fee in ETH, can be set by the protocol owner
@@ -78,6 +78,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
     mapping(address => FeeConfig) public tokenFeeConfig;
     mapping(PoolId => address) public poolToToken;
+    mapping(address => bool) public pairTokenSupported;
 
     address public platformReserve;
 
@@ -122,8 +123,8 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
     /// @notice Emitted when the default pair token is set
     /// @param newPairToken The address of the new default pair token
-    /// @param oldPairToken The address of the old default pair token
-    event SetDefaultPairToken(address indexed newPairToken, address indexed oldPairToken);
+    /// @param support Whether the pair token is supported or not
+    event AddPairToken(address indexed newPairToken, bool support);
 
     /// @notice Emitted when the base token URI is set
     /// @param newBaseTokenURI The new base token URI
@@ -160,6 +161,8 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         platformReserve = _platformReserve;
         protocolOwner = _protocolOwner;
         baseTokenURI = _baseTokenURI;
+        // ETH, CurrencyLibrary.ADDRESS_ZERO, is supported by default
+        pairTokenSupported[address(0)] = true; // ETH is supported by default
     }
 
 
@@ -170,6 +173,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         string memory tokenURI,
         int24 initialTick,
         address creator,
+        address pairToken, // the token to be used as a pair token
         uint128 amountIn // amount of token 0 to swap for the new token
     ) public payable
         returns (RollupToken newToken)
@@ -180,6 +184,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         if (msg.value < launchFee)
             revert InsufficientLaunchFee();
+
+        if (pairTokenSupported[pairToken] == false)
+            revert PairTokenNotSupported();
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
             calculateSupplyAllocation(TOTAL_SUPPLY);
@@ -204,13 +211,13 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
             creatorLPFeeBps: defaultFeeConfig.creatorLPFeeBps,
             protocolBaseBps: defaultFeeConfig.protocolBaseBps,
             creatorBaseBps: defaultFeeConfig.creatorBaseBps,
-            feeToken: address(defaultPairToken), // default fee token is ETH
+            feeToken: address(pairToken), // default fee token is ETH
             creator: creator
         });
         tokenFeeConfig[address(newToken)] = config;
 
         // the default pair token is ETH, CurrencyLibrary.ADDRESS_ZERO
-        address token0 = address(defaultPairToken);
+        address token0 = address(pairToken);
         address token1 = address(newToken);    
         uint256 amount0 = 0;
         uint256 amount1 = lpSupply;
@@ -220,9 +227,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         // Construct pool key
         // PoolKey must have currencies where address(currency0) < address(currency1), otherwise it will revert with CurrenciesOutOfOrderOrEqual error
-        if (address(newToken) < address(defaultPairToken)) {
+        if (address(newToken) < address(pairToken)) {
             token0 = address(newToken);
-            token1 = address(defaultPairToken);
+            token1 = address(pairToken);
             amount0 = lpSupply;
             amount1 = 0;
             tickLower = initialTick; // must be a multiple of tickSpacing
@@ -271,13 +278,13 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         // approve the tokens
 
-        // approve the defaultPairToken
-        // Note: if the defaultPairToken is ETH, we don't need to approve it
-        if (address(defaultPairToken) != address(0)) {
-            // if the defaultPairToken is an ERC20 token, we need to approve it
-            IERC20(defaultPairToken).approve(address(PERMIT2), type(uint256).max);
+        // approve the pairToken
+        // Note: if the pairToken is ETH, we don't need to approve it
+        if (address(pairToken) != address(0)) {
+            // if the pairToken is an ERC20 token, we need to approve it
+            IERC20(pairToken).approve(address(PERMIT2), type(uint256).max);
             // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
-            PERMIT2.approve(address(defaultPairToken), address(positionManager), type(uint160).max, type(uint48).max);
+            PERMIT2.approve(address(pairToken), address(positionManager), type(uint160).max, type(uint48).max);
         }
 
         // approve the newToken
@@ -285,7 +292,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(defaultPairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
+        uint256 valueToPass = address(pairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
 
         // get the ID that will be used for the next minted liquidity position
         uint256 tokenId = IPositionManager(positionManager).nextTokenId();
@@ -337,7 +344,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Combine actions and params into inputs
         inputs[0] = abi.encode(swapActions, swapParams);
 
-        // check the balances of the token and the defaultPairToken before collecting fees
+        // check the balances of the token and the pairToken before collecting fees
         uint256 tokenBalanceBeforeSwap = IERC20(token1).balanceOf(address(this));
 
         // Execute the swap
@@ -354,14 +361,16 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         }
     }
 
-    /// @notice Set the default pair token for the factory
-    /// @param _defaultPairToken The address of the default pair token
-    function setDefaultPairToken(address _defaultPairToken) external {
-        if (msg.sender != protocolOwner) 
+    /// @notice Add/remove a pair token for the factory
+    /// @param pairToken The address of the pair token
+    /// @param support Whether the pair token is supported or not
+
+    function addPairToken(address pairToken, bool support) external {
+        if (msg.sender != protocolOwner)
             revert Unauthorized();
 
-        emit SetDefaultPairToken(_defaultPairToken, defaultPairToken);
-        defaultPairToken = _defaultPairToken;
+        pairTokenSupported[pairToken] = support;
+        emit AddPairToken(pairToken, support);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -387,14 +396,17 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         if (tokenId == 0)
             revert InvalidToken();
 
-        // check the balances of the token and the defaultPairToken before collecting fees
+        FeeConfig memory config = tokenFeeConfig[token];
+        address feeToken = config.feeToken;
+
+        // check the balances of the token and the feeToken before collecting fees
         uint256 tokenBalanceBefore = IERC20(token).balanceOf(address(this));
         // check the eth balance of this contract
         uint256 pairTokenBalanceBefore = 0;
-        if (address(defaultPairToken) == address(0)) {
+        if (address(feeToken) == address(0)) {
             pairTokenBalanceBefore = address(this).balance;
         } else {
-            pairTokenBalanceBefore = IERC20(defaultPairToken).balanceOf(address(this));
+            pairTokenBalanceBefore = IERC20(feeToken).balanceOf(address(this));
         }
 
         bytes memory actions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
@@ -404,10 +416,10 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         /// @dev collecting fees is achieved with liquidity=0, the second parameter
         params[0] = abi.encode(tokenId, 0, 0, 0, hookData);
 
-        // we may not need to compare the order of the token and the defaultPairToken
+        // we may not need to compare the order of the token and the feeToken
         params[1] = abi.encode(
             Currency.wrap(address(token)),
-            Currency.wrap(address(defaultPairToken)),
+            Currency.wrap(address(feeToken)),
             address(this) // recipient is set to be this contract
         );
 
@@ -419,17 +431,17 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
 
         uint256 tokenBalanceAfter = IERC20(token).balanceOf(address(this));
         uint256 pairTokenBalanceAfter = 0;
-        if (address(defaultPairToken) == address(0)) {
+        if (address(feeToken) == address(0)) {
             pairTokenBalanceAfter = address(this).balance;
         } else {
-            pairTokenBalanceAfter = IERC20(defaultPairToken).balanceOf(address(this));
+            pairTokenBalanceAfter = IERC20(feeToken).balanceOf(address(this));
         }
 
         // calculate the unclaimed fees
         uint256 totalFee0;
         uint256 totalFee1;
 
-        if (address(token) < address(defaultPairToken)) {
+        if (address(token) < address(feeToken)) {
             totalFee0 = tokenBalanceAfter - tokenBalanceBefore;
             totalFee1 = pairTokenBalanceAfter - pairTokenBalanceBefore;
         } else {
@@ -438,7 +450,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         }
 
         // Split fees according to configuration
-        FeeConfig memory config = tokenFeeConfig[token];
         uint256 creatorFee0 = (totalFee0 * config.creatorLPFeeBps) / uint256(POOL_FEE);
         uint256 creatorFee1 = (totalFee1 * config.creatorLPFeeBps) / uint256(POOL_FEE);
         uint256 protocolFee0 = totalFee0 - creatorFee0;
@@ -475,8 +486,8 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Get token addresses in correct order
         (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
 
-        if (address(defaultPairToken) == address(0)) {
-            // If the default pair token is ETH, we need to transfer ETH
+        if (address(feeToken) == address(0)) {
+            // If the pair token is ETH, we need to transfer ETH
             if (fees.unclaimed0 > 0) {
                 payable(recipient).transfer(fees.unclaimed0);
             }
@@ -518,7 +529,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         // Get token addresses in correct order
         (address token0, address token1) = address(token) < address(feeToken) ? (token, address(feeToken)) : (address(feeToken), token);
 
-        if (address(defaultPairToken) == address(0)) {
+        if (address(feeToken) == address(0)) {
             // If the default pair token is ETH, we need to transfer ETH
             if (fees.unclaimed0 > 0) {
                 payable(recipient).transfer(fees.unclaimed0);
@@ -568,7 +579,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @return protocolAmount The amount allocated to the protocol
     function calculateSupplyAllocation(uint256 totalSupply)
         public
-        pure
+        view
         returns (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount)
     {
         creatorAmount = (totalSupply * defaultFeeConfig.creatorBaseBps) / 10_000;

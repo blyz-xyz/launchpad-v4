@@ -50,6 +50,7 @@ contract FactoryV2Test is Test, TestConfig {
             tokenURI,
             207200,
             address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c),
+            feeToken,
             0 ether // 0 ETH for the buy
         );
     }
