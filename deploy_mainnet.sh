@@ -5,10 +5,10 @@ source .env
 
 # Set the addresses for the Ethereum mainnet
 poolManagerAddress=0x000000000004444c5dc75cB358380D2e3dE08A90
-platformReserveAddress=0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c
 positionManagerAddress=0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e
 permit2Address=0x000000000022D473030F116dDEE9F6B43aC78BA3
 universalRouterAddress=0x3a9d48ab9751398bbfa63ad67599bb04e4bdf98b
+platformReserveAddress=0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c
 protocolOwnerAddress=0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c
 baseTokenURI="ipfs://"
 
