@@ -12,12 +12,13 @@ import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol
 import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
 import "universal-router/contracts/libraries/Commands.sol";
 import "universal-router/contracts/UniversalRouter.sol";
 import "./RollupToken.sol";
 
-contract FairLaunchFactoryV2 is IERC721Receiver {
+contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -32,7 +33,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     error PairTokenNotSupported();
 
     IPoolManager public immutable poolManager;
-    address public protocolOwner;
     bool public deprecated = false; // if true, the factory is deprecated and no new tokens can be launched
     uint256 public launchFee = 0 ether; // launch fee in ETH, can be set by the protocol owner
 
@@ -153,13 +153,14 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
         address _platformReserve,
         address _protocolOwner,
         string memory _baseTokenURI
-    ) {
+    ) 
+        Ownable(_protocolOwner)
+    {
         poolManager = IPoolManager(_poolManager);
         positionManager = IPositionManager(_positionManager);
         PERMIT2 = IAllowanceTransfer(_permit2);
         router = UniversalRouter(_universalRouter);
         platformReserve = _platformReserve;
-        protocolOwner = _protocolOwner;
         baseTokenURI = _baseTokenURI;
         // ETH, CurrencyLibrary.ADDRESS_ZERO, is supported by default
         pairTokenSupported[address(0)] = true; // ETH is supported by default
@@ -365,10 +366,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @param pairToken The address of the pair token
     /// @param support Whether the pair token is supported or not
 
-    function addPairToken(address pairToken, bool support) external {
-        if (msg.sender != protocolOwner)
-            revert Unauthorized();
-
+    function addPairToken(address pairToken, bool support) external onlyOwner {
         pairTokenSupported[pairToken] = support;
         emit AddPairToken(pairToken, support);
     }
@@ -378,10 +376,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Set the new base token URI
-    function setBaseTokenURI(string memory newBaseTokenURI) external {
-        if (msg.sender != protocolOwner) 
-            revert Unauthorized();
-
+    function setBaseTokenURI(string memory newBaseTokenURI) external onlyOwner {
         baseTokenURI = newBaseTokenURI;
 
         emit SetBaseTokenURI(newBaseTokenURI);
@@ -510,10 +505,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @notice Claims Protocol Fees. Only the protocol owner can call this function.
     /// @param token The token address to claim fees for
     /// @param recipient The recipient of the fees
-    function claimProtocolFees(address token, address recipient) external {
-        if (msg.sender != protocolOwner) 
-            revert Unauthorized();
-
+    function claimProtocolFees(address token, address recipient) external onlyOwner {
         uint256 tokenId = tokenPositionIds[token];
 
         UnclaimedFees memory fees = protocolUnclaimedFees[tokenId];
@@ -601,10 +593,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @param _deprecated The new value for the deprecated flag
     /// @dev If deprecated is set to true, no new tokens can be launched
     /// @dev Only the protocol owner can call this function
-    function setDeprecated(bool _deprecated) external {
-        if (msg.sender != protocolOwner)
-            revert Unauthorized();
-
+    function setDeprecated(bool _deprecated) external onlyOwner {
         deprecated = _deprecated;
         emit SetDeprecated(deprecated);
     }
@@ -613,10 +602,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver {
     /// @param newLaunchFee The new launch fee in wei
     /// @dev The launch fee is the amount of ETH required to launch a new token
     /// @dev Only the protocol owner can call this function
-    function setLaunchFee(uint256 newLaunchFee) external {
-        if (msg.sender != protocolOwner) 
-            revert Unauthorized();
-
+    function setLaunchFee(uint256 newLaunchFee) external onlyOwner {
         launchFee = newLaunchFee;
         emit SetLaunchFee(newLaunchFee);
     }
