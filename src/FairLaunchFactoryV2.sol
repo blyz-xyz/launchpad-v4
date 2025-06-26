@@ -484,18 +484,22 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         if (address(feeToken) == address(0)) {
             // If the pair token is ETH, we need to transfer ETH
             if (fees.unclaimed0 > 0) {
-                payable(recipient).transfer(fees.unclaimed0);
+                (bool success, ) = payable(recipient).call{value: fees.unclaimed0}("");
+                require(success, "ETH transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                IERC20(token1).transfer(recipient, fees.unclaimed1);
+                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
+                require(success, "Transfer failed");
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                IERC20(token0).transfer(recipient, fees.unclaimed0);
+                bool success = IERC20(token0).transfer(recipient, fees.unclaimed0);
+                require(success, "Transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                IERC20(token1).transfer(recipient, fees.unclaimed1);
+                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
+                require(success, "Transfer failed");
             }
         }
 
@@ -524,18 +528,22 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         if (address(feeToken) == address(0)) {
             // If the default pair token is ETH, we need to transfer ETH
             if (fees.unclaimed0 > 0) {
-                payable(recipient).transfer(fees.unclaimed0);
+                (bool success, ) = payable(recipient).call{value: fees.unclaimed0}("");
+                require(success, "ETH transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                IERC20(token1).transfer(recipient, fees.unclaimed1);
+                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
+                require(success, "Transfer failed");
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                IERC20(token0).transfer(recipient, fees.unclaimed0);
+                bool success = IERC20(token0).transfer(recipient, fees.unclaimed0);
+                require(success, "Transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                IERC20(token1).transfer(recipient, fees.unclaimed1);
+                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
+                require(success, "Transfer failed");
             }
         }
 
