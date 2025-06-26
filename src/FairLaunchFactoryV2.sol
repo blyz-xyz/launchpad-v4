@@ -334,7 +334,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         swapParams[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: key,
-                zeroForOne: true, // true if we're swapping token0 for token1
+                zeroForOne: address(pairToken) < address(newToken), // true if we're swapping token0 for token1
                 amountIn: amountIn, // amount of tokens we're swapping
                 amountOutMinimum: 0, // minimum amount we expect to receive
                 hookData: bytes("") // no hook data needed
