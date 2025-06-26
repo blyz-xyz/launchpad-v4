@@ -310,6 +310,15 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         if (amountIn == 0)
             return newToken; // no creator buy, just finish the function
 
+        if (address(pairToken) != address(0)) {
+            // if the pairToken is an ERC20 token, we need to transfer it to the contract
+            bool success = IERC20(pairToken).transferFrom(msg.sender, address(this), amountIn);
+            require(success, "Transfer failed");
+        } else {
+            // if the pairToken is ETH, we assume the amountIn is already sent with the transaction
+            require(msg.value >= amountIn + launchFee, "Insufficient ETH sent");
+        }
+
         // allow creator to buy the token
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         // Encode V4Router actions
