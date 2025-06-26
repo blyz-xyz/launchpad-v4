@@ -615,7 +615,14 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         emit SetLaunchFee(newLaunchFee);
     }
 
-
+    /// @notice Withdraws certain amount of ETH (launch fees) from the contract to some recipient by the protocol owner
+    /// @dev Only callable by the protocol owner
+    function withdrawFees(address payable recipient, uint256 amount) external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance >= amount, "Not enough ETH to withdraw");
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "ETH withdrawal failed");
+    }
 
     /*//////////////////////////////////////////////////////////////
                           POSITION MANAGEMENT
