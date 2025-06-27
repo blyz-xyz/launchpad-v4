@@ -348,6 +348,11 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         // Third parameter: specify output tokens from the swap
         swapParams[2] = abi.encode(key.currency1, 0);
 
+        if (address(newToken) < address(pairToken)) {
+            swapParams[1] = abi.encode(key.currency1, amountIn, true);
+            swapParams[2] = abi.encode(key.currency0, 0);
+        }
+
         // execute the swap
         bytes[] memory inputs = new bytes[](1);
 
