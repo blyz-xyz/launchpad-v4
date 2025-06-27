@@ -57,7 +57,7 @@ contract DeployAndBuyERC20 is Script {
         console2.log("Pair token added to factory");
 
         // Approve the factory to spend the pair token on behalf of the creator
-        uint256 amountIn = 100_000 * 1e18; // Approve 100,000 tokens for the swap amountIn
+        uint128 amountIn = 100 * 1e18; // Approve 100,000 tokens for the swap amountIn
         pairERC20.approve(address(factoryV2), amountIn);
 
         string memory name = "RollupToken1P";
@@ -69,10 +69,10 @@ contract DeployAndBuyERC20 is Script {
             name,
             symbol,
             tokenURI,
-            207200,
+            0,
             creator,
             address(pairERC20),
-            1 * 1e16
+            amountIn
         );
 
         vm.stopBroadcast();
