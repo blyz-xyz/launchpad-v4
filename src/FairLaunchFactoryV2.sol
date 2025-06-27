@@ -234,9 +234,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             token1 = address(pairToken);
             amount0 = lpSupply;
             amount1 = 0;
-            tickLower = initialTick; // must be a multiple of tickSpacing
+            tickLower = -initialTick; // must be a multiple of tickSpacing
             tickUpper = TickMath.maxUsableTick(TICK_SPACING);
-            startingPrice = TickMath.getSqrtPriceAtTick(initialTick);
+            startingPrice = TickMath.getSqrtPriceAtTick(-initialTick);
         }
 
         PoolKey memory key = PoolKey({
@@ -287,6 +287,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             IERC20(pairToken).approve(address(PERMIT2), type(uint256).max);
             // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
             PERMIT2.approve(address(pairToken), address(positionManager), type(uint160).max, type(uint48).max);
+            // PERMIT2.approve(address(pairToken), address(router), type(uint160).max, type(uint48).max);
         }
 
         // approve the newToken
@@ -310,6 +311,10 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         /// @notice Check if to execute creator buy
         if (amountIn == 0)
             return newToken; // no creator buy, just finish the function
+
+        if (address(pairToken) != address(0)) {
+            PERMIT2.approve(address(pairToken), address(router), type(uint160).max, type(uint48).max);
+        }
 
         if (address(pairToken) != address(0)) {
             // if the pairToken is an ERC20 token, we need to transfer it to the contract
@@ -349,6 +354,11 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         // Third parameter: specify output tokens from the swap
         swapParams[2] = abi.encode(key.currency1, 0);
 
+        if (address(newToken) < address(pairToken)) {
+            swapParams[1] = abi.encode(key.currency1, amountIn, true);
+            swapParams[2] = abi.encode(key.currency0, 0);
+        }
+
         // execute the swap
         bytes[] memory inputs = new bytes[](1);
 
@@ -356,18 +366,18 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         inputs[0] = abi.encode(swapActions, swapParams);
 
         // check the balances of the token and the pairToken before collecting fees
-        uint256 tokenBalanceBeforeSwap = IERC20(token1).balanceOf(address(this));
+        uint256 tokenBalanceBeforeSwap = IERC20(newToken).balanceOf(address(this));
 
         // Execute the swap
         router.execute{value: msg.value - launchFee}(commands, inputs, block.timestamp + 60);
 
-        uint256 tokenBalanceAfterSwap = IERC20(token1).balanceOf(address(this));
+        uint256 tokenBalanceAfterSwap = IERC20(newToken).balanceOf(address(this));
 
         // since the swapped token is received in the contract, we can transfer it to the creator
         uint256 amountReceived = tokenBalanceAfterSwap - tokenBalanceBeforeSwap;
         if (amountReceived > 0) {
             // transfer the received tokens to the creator
-            IERC20(token1).safeTransfer(creator, amountReceived);
+            IERC20(newToken).safeTransfer(creator, amountReceived);
         }
     }
 
