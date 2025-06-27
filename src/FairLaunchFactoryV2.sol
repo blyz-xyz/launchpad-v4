@@ -11,6 +11,7 @@ import "v4-periphery/src/libraries/Actions.sol";
 import {IPositionManager} from "v4-periphery/src/interfaces/IPositionManager.sol";
 import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "permit2/src/interfaces/IAllowanceTransfer.sol";
@@ -19,7 +20,7 @@ import "universal-router/contracts/UniversalRouter.sol";
 import "./RollupToken.sol";
 
 contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
-
+    using SafeERC20 for IERC20;
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -366,8 +367,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         uint256 amountReceived = tokenBalanceAfterSwap - tokenBalanceBeforeSwap;
         if (amountReceived > 0) {
             // transfer the received tokens to the creator
-            bool success = IERC20(token1).transfer(creator, amountReceived);
-            require (success, "Transfer failed");
+            IERC20(token1).safeTransfer(creator, amountReceived);
         }
     }
 
@@ -497,18 +497,15 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
                 require(success, "ETH transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
-                require(success, "Transfer failed");
+                IERC20(token1).safeTransfer(recipient, fees.unclaimed1);
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                bool success = IERC20(token0).transfer(recipient, fees.unclaimed0);
-                require(success, "Transfer failed");
+                IERC20(token0).safeTransfer(recipient, fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
-                require(success, "Transfer failed");
+                IERC20(token1).safeTransfer(recipient, fees.unclaimed1);
             }
         }
 
@@ -541,18 +538,15 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
                 require(success, "ETH transfer failed");
             }
             if (fees.unclaimed1 > 0) {
-                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
-                require(success, "Transfer failed");
+                IERC20(token1).safeTransfer(recipient, fees.unclaimed1);
             }
         } else {
             // Transfer fees
             if (fees.unclaimed0 > 0) {
-                bool success = IERC20(token0).transfer(recipient, fees.unclaimed0);
-                require(success, "Transfer failed");
+                IERC20(token0).safeTransfer(recipient, fees.unclaimed0);
             }
             if (fees.unclaimed1 > 0) {
-                bool success = IERC20(token1).transfer(recipient, fees.unclaimed1);
-                require(success, "Transfer failed");
+                IERC20(token1).safeTransfer(recipient, fees.unclaimed1);
             }
         }
 
