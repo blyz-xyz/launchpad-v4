@@ -296,13 +296,13 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
 
         // if the pool is an ETH pair, native tokens are to be transferred
-        uint256 valueToPass = address(pairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
+        // uint256 valueToPass = address(pairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
 
         // get the ID that will be used for the next minted liquidity position
         uint256 tokenId = IPositionManager(positionManager).nextTokenId();
 
         // multicall to atomically create pool & add liquidity
-        IPositionManager(positionManager).multicall{value: valueToPass}(params);
+        IPositionManager(positionManager).multicall(params);
 
         // Store the position ID
         tokenPositionIds[address(newToken)] = tokenId;
@@ -323,7 +323,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             require(success, "Transfer failed");
         } else {
             // if the pairToken is ETH, we assume the amountIn is already sent with the transaction
-            require(msg.value >= amountIn + launchFee, "Insufficient ETH sent");
+            require(msg.value == amountIn + launchFee, "ETH sent incorrectly");
         }
 
         // allow creator to buy the token
