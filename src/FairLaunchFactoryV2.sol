@@ -36,6 +36,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
     IPoolManager public immutable poolManager;
     bool public deprecated = false; // if true, the factory is deprecated and no new tokens can be launched
     uint256 public launchFee = 0 ether; // launch fee in ETH, can be set by the protocol owner
+    uint256 public launchFeeAccrued = 0 ether; // total launch fees accrued by the factory
 
     // fee expressed in pips, i.e. 10000 = 1%
     uint24 public constant POOL_FEE = 10_000;
@@ -379,6 +380,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             // transfer the received tokens to the creator
             IERC20(newToken).safeTransfer(creator, amountReceived);
         }
+
+        if (launchFee > 0)
+            launchFeeAccrued += launchFee; // accumulate the launch fee
     }
 
     /// @notice Add/remove a pair token for the factory
@@ -630,11 +634,12 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
 
     /// @notice Withdraws certain amount of ETH (launch fees) from the contract to some recipient by the protocol owner
     /// @dev Only callable by the protocol owner
-    function withdrawFees(address payable recipient, uint256 amount) external onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance >= amount, "Not enough ETH to withdraw");
-        (bool success, ) = recipient.call{value: amount}("");
-        require(success, "ETH withdrawal failed");
+    function withdrawLaunchFees(address payable recipient) external onlyOwner {
+        require(recipient != address(0), "Invalid recipient");
+        require(launchFeeAccrued > 0, "No fees to withdraw");
+        (bool success, ) = recipient.call{value: launchFeeAccrued}("");
+        require(success, "Withdraw failed");
+        launchFeeAccrued = 0; // reduce the accrued fees
     }
 
     /*//////////////////////////////////////////////////////////////
