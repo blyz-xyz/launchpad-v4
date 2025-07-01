@@ -30,7 +30,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
     error Unauthorized();
     error NotUniswapPositionManager();
     error Deprecated();
-    error InsufficientLaunchFee();
     error PairTokenNotSupported();
 
     IPoolManager public immutable poolManager;
@@ -185,11 +184,14 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         if (deprecated) 
             revert Deprecated();
 
-        if (msg.value < launchFee)
-            revert InsufficientLaunchFee();
-
         if (pairTokenSupported[pairToken] == false)
             revert PairTokenNotSupported();
+
+        if (address(pairToken) == address(0)) {
+            require(msg.value == amountIn + launchFee, "Incorrect ETH sent");
+        } else {
+            require(msg.value == launchFee, "Incorrect ETH sent");
+        }
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
             calculateSupplyAllocation(TOTAL_SUPPLY);
@@ -309,6 +311,10 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
 
         emit TokenLaunched(address(newToken), creator, key.toId(), tokenId);     
 
+        if (launchFee > 0) {
+            launchFeeAccrued += launchFee; // accumulate the launch fee
+        }
+
         /// @notice Check if to execute creator buy
         if (amountIn == 0)
             return newToken; // no creator buy, just finish the function
@@ -321,10 +327,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             // if the pairToken is an ERC20 token, we need to transfer it to the contract
             bool success = IERC20(pairToken).transferFrom(msg.sender, address(this), amountIn);
             require(success, "Transfer failed");
-        } else {
-            // if the pairToken is ETH, we assume the amountIn is already sent with the transaction
-            require(msg.value == amountIn + launchFee, "ETH sent incorrectly");
         }
+        // if the pairToken is ETH, we have already checked that 
+        // the value sent is equal to the sum of amountIn and launchFee
 
         // allow creator to buy the token
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -380,9 +385,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
             // transfer the received tokens to the creator
             IERC20(newToken).safeTransfer(creator, amountReceived);
         }
-
-        if (launchFee > 0)
-            launchFeeAccrued += launchFee; // accumulate the launch fee
     }
 
     /// @notice Add/remove a pair token for the factory

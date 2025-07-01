@@ -6,20 +6,8 @@ import "./../../src/RollupToken.sol";
 import "forge-std/console2.sol";
 import "forge-std/Script.sol";
 
-// Simple ERC20 token contract for testing
-contract PairERC20 is ERC20 {
-    constructor(string memory name, string memory symbol, uint256 initialSupply, address to) ERC20(name, symbol) {
-        _mint(to, initialSupply);
-    }
-
-    function decimals() public pure override returns (uint8) {
-        return 6; // Use 6 decimals for the pair token
-    }
-}
-
-contract DeployAndBuyERC20 is Script {
+contract DeployAndBuyWithLaunchFee is Script {
     FairLaunchFactoryV2 public factoryV2;
-    PairERC20 public pairERC20;
 
     function setUp() public {
     }
@@ -49,34 +37,29 @@ contract DeployAndBuyERC20 is Script {
 
         console2.log("FairLaunchFactoryV2", address(factoryV2));
 
-        // Deploy a ERC20 token, which will be used as the pair token for the swap
-        // Deploy a new ERC20 token with 1 billion supply (assuming 18 decimals)
-        uint256 initialSupply = 1_000_000_000 * 1e6;
-        pairERC20 = new PairERC20("USD Coin", "USDC", initialSupply, creator);
-        console2.log("PairERC20 deployed at", address(pairERC20));
-        console2.log("Creator balance", pairERC20.balanceOf(creator));
-
-        // Add the new ERC20 pair token to the support list
-        factoryV2.addPairToken(address(pairERC20), true);
-        console2.log("Pair token added to factory");
-
-        // Approve the factory to spend the pair token on behalf of the creator
-        uint128 amountIn = 100 * 1e6; // Approve 100,000 tokens for the swap amountIn
-        pairERC20.approve(address(factoryV2), amountIn);
-
         string memory name = "RollupToken1P";
         string memory symbol = "GLT1P";
+        address feeToken = address(0);
         string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
 
+        // set launch fee to 0.01 ETH
+        factoryV2.setLaunchFee(0.01 ether);
+
+        vm.stopBroadcast();
+
+        vm.startBroadcast();
+
         // @Notice: CurrenciesOutOfOrderOrEqual
-        factoryV2.launchToken(
+        (RollupToken token) = factoryV2.launchToken{
+            value: 0.01 ether // 0.01 ETH for the launch fee
+        }(
             name,
             symbol,
             tokenURI,
-            391400,
+            207200,
             creator,
-            address(pairERC20),
-            amountIn
+            feeToken,
+            0 ether // 0 ETH for the creator buy
         );
 
         vm.stopBroadcast();
