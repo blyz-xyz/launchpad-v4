@@ -157,6 +157,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
     ) 
         Ownable(_protocolOwner)
     {
+        require(_protocolOwner != address(0), "Invalid protocol owner");
         poolManager = IPoolManager(_poolManager);
         positionManager = IPositionManager(_positionManager);
         PERMIT2 = IAllowanceTransfer(_permit2);
@@ -195,8 +196,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
 
         (uint256 lpSupply, uint256 creatorAmount, uint256 protocolAmount) =
             calculateSupplyAllocation(TOTAL_SUPPLY);
-
-        // string memory tokenURI = string(abi.encodePacked(baseTokenURI, toHex(keccak256(abi.encodePacked(name, symbol, merkleroot)))));
 
         newToken = new RollupToken(
             name,
@@ -325,8 +324,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
 
         if (address(pairToken) != address(0)) {
             // if the pairToken is an ERC20 token, we need to transfer it to the contract
-            bool success = IERC20(pairToken).transferFrom(msg.sender, address(this), amountIn);
-            require(success, "Transfer failed");
+            IERC20(pairToken).safeTransferFrom(msg.sender, address(this), amountIn);
         }
         // if the pairToken is ETH, we have already checked that 
         // the value sent is equal to the sum of amountIn and launchFee
@@ -639,9 +637,10 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
     function withdrawLaunchFees(address payable recipient) external onlyOwner {
         require(recipient != address(0), "Invalid recipient");
         require(launchFeeAccrued > 0, "No fees to withdraw");
-        (bool success, ) = recipient.call{value: launchFeeAccrued}("");
-        require(success, "Withdraw failed");
+        uint256 amount = launchFeeAccrued; // Store in local variable
         launchFeeAccrued = 0; // reduce the accrued fees
+        (bool success, ) = recipient.call{value: amount}("");
+        require(success, "Withdraw failed");
     }
 
     /*//////////////////////////////////////////////////////////////
