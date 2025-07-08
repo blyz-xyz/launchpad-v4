@@ -286,7 +286,7 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         // Note: if the pairToken is ETH, we don't need to approve it
         if (address(pairToken) != address(0)) {
             // if the pairToken is an ERC20 token, we need to approve it
-            IERC20(pairToken).approve(address(PERMIT2), type(uint256).max);
+            IERC20(pairToken).approve(address(PERMIT2), amountIn);
             // Approves the spender, positionManager, to use up to amount of the specified token up until the expiration
             PERMIT2.approve(address(pairToken), address(positionManager), type(uint160).max, type(uint48).max);
             // PERMIT2.approve(address(pairToken), address(router), type(uint160).max, type(uint48).max);
