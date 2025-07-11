@@ -26,7 +26,7 @@ contract RollupToken is ERC20Permit, ERC20Votes {
         ERC20Permit(name)
         ERC20Votes()
     {
-        require(creatorAmount + protocolAmount + lpAmount <= TOTAL_SUPPLY, "RollupToken: Total supply exceeded");
+        require((creatorAmount + protocolAmount + lpAmount) == TOTAL_SUPPLY, "RollupToken: Total supply mismatch");
 
         tokenURI = _tokenURI;
 
