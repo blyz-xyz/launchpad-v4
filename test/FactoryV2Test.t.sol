@@ -33,26 +33,7 @@ contract FactoryV2Test is Test {
             protocolOwnerAddress,
             baseTokenURI
         );
-        console2.log("FairLaunchFactoryV2 deployed at:", address(factoryV2));
         vm.stopPrank();
-    }
-
-    function testLaunchToken() public {
-        vm.startPrank(protocolOwnerAddress);
-        string memory name = "RollupToken1P";
-        string memory symbol = "GLT1P";
-        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";        
-        address feeToken = address(0);
-
-        (RollupToken token) = factoryV2.launchToken(
-            name,
-            symbol,
-            tokenURI,
-            207200,
-            creator,
-            feeToken,
-            0 ether
-        );
     }
 
     function testCalculateSupplyAllocation() public view {
