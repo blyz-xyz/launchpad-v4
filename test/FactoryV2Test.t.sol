@@ -8,7 +8,7 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 
 
-contract FactoryV2Test is Test, TestConfig {
+contract FactoryV2Test is Test, Fixtures {
     FairLaunchFactoryV2 public factoryV2;
     address constant poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
     address constant positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
@@ -16,9 +16,13 @@ contract FactoryV2Test is Test, TestConfig {
     address constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address payable universalRouterAddress=payable(address(0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b));
     address constant protocolOwnerAddress = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
+    address constant creator = 0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c;
     string constant baseTokenURI = "ipfs://";
 
+    event SetBaseTokenURI(string newBaseTokenURI);
+
     function setUp() public {
+        vm.startPrank(protocolOwnerAddress);
         factoryV2 = new FairLaunchFactoryV2(
             poolManagerAddress,
             positionManagerAddress,
@@ -28,20 +32,15 @@ contract FactoryV2Test is Test, TestConfig {
             protocolOwnerAddress,
             baseTokenURI
         );
-    }
-
-    function testCreateFactory() public {
-        // Access Hevm via the `vm` instance
-        // sets msg.sender for all subsequent calls  
-        vm.startPrank(creator);
+        console2.log("FairLaunchFactoryV2 deployed at:", address(factoryV2));
+        vm.stopPrank();
     }
 
     function testLaunchToken() public {
-        vm.startPrank(creator);
-        string memory name = "RollupToken";
-        string memory symbol = "GLT";
-        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";
-        uint256 supply = 1_000_000_000 ether;
+        vm.startPrank(protocolOwnerAddress);
+        string memory name = "RollupToken1P";
+        string memory symbol = "GLT1P";
+        string memory tokenURI = "QmT5NvUtoM5nXc6b7z8f4Z9F3d5e5e5e5e5e5e5e5e5e";        
         address feeToken = address(0);
 
         (RollupToken token) = factoryV2.launchToken(
@@ -49,19 +48,32 @@ contract FactoryV2Test is Test, TestConfig {
             symbol,
             tokenURI,
             207200,
-            address(0x169Fb46B8da6571b9fFF3026A774FCB9f96A528c),
+            creator,
             feeToken,
-            0 ether // 0 ETH for the buy
+            0 ether
         );
     }
 
     function testCalculateSupplyAllocation() public view {
-        // vm.startPrank(creator);
         uint256 totalSupply = 1_000_000_000 ether;
         (uint256 lpAmount, uint256 creatorAmount, uint256 protocolAmount) = 
             factoryV2.calculateSupplyAllocation(totalSupply);
-        assertEq(creatorAmount, 10_000_000*10e18);
-        assertEq(protocolAmount, 10_000_000*10e18);
-        assertEq(lpAmount, 980_000_000*10e18);
+        assertEq(creatorAmount, 10_000_000*1e18);
+        assertEq(protocolAmount, 10_000_000*1e18);
+        assertEq(lpAmount, 980_000_000*1e18);
+    }
+
+    function testSetBaseTokenURIByOwner() public {
+        vm.startPrank(protocolOwnerAddress);
+        string memory newURI = "ipfs://newbase/";
+        factoryV2.setBaseTokenURI(newURI);
+        assertEq(factoryV2.baseTokenURI(), newURI);
+    }
+
+    function testSetBaseTokenURINotOwnerReverts() public {
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert();
+        factoryV2.setBaseTokenURI("ipfs://fail/");
     }
 }
