@@ -8,7 +8,7 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 
 
-contract FactoryV2Test is Test, Fixtures {
+contract FactoryV2Test is Test {
     FairLaunchFactoryV2 public factoryV2;
     address constant poolManagerAddress = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
     address constant positionManagerAddress = 0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4;
@@ -20,6 +20,7 @@ contract FactoryV2Test is Test, Fixtures {
     string constant baseTokenURI = "ipfs://";
 
     event SetBaseTokenURI(string newBaseTokenURI);
+    event SetLaunchFee(uint256 newLaunchFee);
 
     function setUp() public {
         vm.startPrank(protocolOwnerAddress);
@@ -76,4 +77,21 @@ contract FactoryV2Test is Test, Fixtures {
         vm.expectRevert();
         factoryV2.setBaseTokenURI("ipfs://fail/");
     }
+
+    function testSetLaunchFeeByOwner() public {
+        uint256 newFee = 1 ether;
+        vm.startPrank(protocolOwnerAddress);
+        vm.expectEmit(false, false, false, true);
+        emit SetLaunchFee(newFee);
+        factoryV2.setLaunchFee(newFee);
+        assertEq(factoryV2.launchFee(), newFee);
+        vm.stopPrank();
+    }
+
+    function testSetLaunchFeeNotOwnerReverts() public {
+        address notOwner = makeAddr("notOwner");
+        vm.prank(notOwner);
+        vm.expectRevert();
+        factoryV2.setLaunchFee(2 ether);
+    }    
 }
