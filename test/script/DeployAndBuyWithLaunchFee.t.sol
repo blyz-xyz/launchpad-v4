@@ -12,7 +12,7 @@ contract DeployAndBuyWithLaunchFee is Script {
     function setUp() public {
     }
 
-    function run() public returns (IPoolManager manager) {
+    function run() public {
         vm.startBroadcast();
         // Uniswap deployment on Sepolia
         // refs: https://docs.uniswap.org/contracts/v4/deployments#sepolia-11155111
