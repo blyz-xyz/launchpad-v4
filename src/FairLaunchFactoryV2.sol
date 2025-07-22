@@ -41,15 +41,9 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
     uint24 public constant POOL_FEE = 10_000;
     // 200 tick-spacing = 1% fee, 400 tick-spacing = 2% fee
     int24 public constant TICK_SPACING = 200;
-    // if (tick % tickSpacing != 0) revert TickMisaligned(tick, tickSpacing); // custom error 0xd4d8f3e6
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 ether; // 1 billion with 18 decimals
 
-    // positionManager on Sepolia
-    // IPositionManager public immutable positionManager = IPositionManager(address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4));
     IPositionManager public immutable positionManager;
-    // Permit2 is deployed to the same address across mainnet, Ethereum, Optimism, Arbitrum, Polygon, and Celo.
-    // Note: Permit2 is also deployed to the same address on testnet Sepolia.
-    // IAllowanceTransfer public immutable PERMIT2 = IAllowanceTransfer(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
     IAllowanceTransfer public immutable PERMIT2;
 
     /// @dev The UniversalRouter contract is used to execute swaps and other actions
@@ -294,9 +288,6 @@ contract FairLaunchFactoryV2 is IERC721Receiver, Ownable {
         // approve the newToken
         IERC20(newToken).approve(address(PERMIT2), type(uint256).max);
         PERMIT2.approve(address(newToken), address(positionManager), type(uint160).max, type(uint48).max);
-
-        // if the pool is an ETH pair, native tokens are to be transferred
-        // uint256 valueToPass = address(pairToken) == address(0) ? msg.value - (amountIn + launchFee) : 0;
 
         // get the ID that will be used for the next minted liquidity position
         uint256 tokenId = IPositionManager(positionManager).nextTokenId();
