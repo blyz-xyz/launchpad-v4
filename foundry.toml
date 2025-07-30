@@ -1,9 +1,15 @@
+# Depending on your foundry.toml configuration, certain options can lead to non-deterministic build output.
+# Below are some settings that help enforce a more deterministic output in building/deploying.
+# https://github.com/foundry-rs/foundry/issues/6780
+# https://docs.soliditylang.org/en/latest/using-the-compiler.html#compiler-input-and-output-json-description
+
 [profile.default]
 ffi = true
 solc_version = "0.8.26"
 evm_version = "cancun"
 libs = ["node_modules", "lib"]
 via_ir = true
+bytecode_hash = "none"
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
