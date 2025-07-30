@@ -1,3 +1,7 @@
+# If verification fails, please check these issues:
+# https://github.com/foundry-rs/foundry/issues/4060
+# https://github.com/foundry-rs/foundry/issues/6780
+
 [profile.default]
 ffi = true
 solc_version = "0.8.26"
@@ -5,8 +9,6 @@ evm_version = "cancun"
 libs = ["node_modules", "lib"]
 via_ir = true
 bytecode_hash = "none"
-cbor_metadata = false
-sparse_mode = false
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
