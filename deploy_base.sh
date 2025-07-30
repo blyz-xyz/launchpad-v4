@@ -28,6 +28,7 @@ encodedArgs=$(cast abi-encode \
   $protocolOwnerAddress \
   $baseTokenURI)
 
+# TODO: just use out/FairLaunchFactoryV2.sol/FairLaunchFactoryV2.json here 
 forge build --via-ir --optimizer-runs 100 --compiler-version $solcVersion \
 && local=$(forge inspect src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 bytecode | sed 's/^0x//') \
 && args=$(echo "$encodedArgs" | sed 's/^0x//') \
