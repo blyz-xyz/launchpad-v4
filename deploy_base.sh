@@ -15,8 +15,8 @@ baseTokenURI="ipfs://"
 # Set the local solc compiler version
 solcVersion="0.8.26+commit.8a97fa7a"
 
-# forge create --chain 8453 --rpc-url $BASE_RPC_URL --via-ir --optimizer-runs 100 --compiler-version $solcVersion --interactive --broadcast --verify src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 \
-#     --constructor-args $poolManagerAddress $positionManagerAddress $permit2Address $universalRouterAddress $platformReserveAddress $protocolOwnerAddress $baseTokenURI
+forge create --chain 8453 --rpc-url $BASE_RPC_URL --via-ir --optimizer-runs 100 --compiler-version $solcVersion --interactive --broadcast --verify src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 \
+    --constructor-args $poolManagerAddress $positionManagerAddress $permit2Address $universalRouterAddress $platformReserveAddress $protocolOwnerAddress $baseTokenURI
 
 encodedArgs=$(cast abi-encode \
   "constructor(address,address,address,address,address,address,string)" \
@@ -32,7 +32,7 @@ forge build --via-ir --optimizer-runs 100 --compiler-version $solcVersion \
 && local=$(forge inspect src/FairLaunchFactoryV2.sol:FairLaunchFactoryV2 bytecode | sed 's/^0x//') \
 && args=$(echo "$encodedArgs" | sed 's/^0x//') \
 && echo "local creation-hash: $(echo ${local}${args} | cast keccak)" \
-&& echo "0x${local}${args}" > local.hex \
+&& echo "0x${local}" > local.hex \
 && remote=$(tr -d '\n' < remote.hex | sed 's/^0x//') \
 && echo "remote creation-hash: $(echo ${remote} | cast keccak)" \
 && if [ "${local}${args}" = "$remote" ]; then \
