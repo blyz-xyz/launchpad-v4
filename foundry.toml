@@ -1,4 +1,5 @@
-# If verification fails, please check these issues:
+# If verification fails, please check these:
+# https://docs.soliditylang.org/en/latest/using-the-compiler.html#compiler-input-and-output-json-description
 # https://github.com/foundry-rs/foundry/issues/4060
 # https://github.com/foundry-rs/foundry/issues/6780
 
