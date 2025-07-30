@@ -4,8 +4,15 @@ solc_version = "0.8.26"
 evm_version = "cancun"
 libs = ["node_modules", "lib"]
 via_ir = true
-optimizer      = true
+optimizer = true
 optimizer_runs = 100
+bytecode_hash = "none"
+cbor_metadata = false
+sparse_mode = false
+
+[profile.default.optimizer_details]
+# constantOptimizer = true
+yul = true
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
