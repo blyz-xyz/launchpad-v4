@@ -11,7 +11,6 @@ cbor_metadata = false
 sparse_mode = false
 
 [profile.default.optimizer_details]
-# constantOptimizer = true
 yul = true
 
 [rpc_endpoints]
